@@ -24,6 +24,7 @@ Please see the wiki for more detail on sources and methods
 
 Just run:
 `pip install -r requirements.txt`
+
 Or if you have make:
 `make setup`
 
