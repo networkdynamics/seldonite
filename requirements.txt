@@ -1,0 +1,2 @@
+news-please>=1.5.21
+pytest>=6.2.3
