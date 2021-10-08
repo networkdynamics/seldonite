@@ -2,8 +2,9 @@ import logging
 import os
 
 from article import NewsArticle
+import filter
 
-import newsplease
+from newsplease import commoncrawl_extractor, commoncrawl_crawler
 from googleapiclient.discovery import build as gbuild
 
 # TODO make abstract
@@ -16,9 +17,9 @@ class Source:
 
     # TODO make abstract
     def __init__(self):
-        pass
+        self.can_keyword_filter = False
 
-    def set_interval(self, start_date, end_date, strict=True):
+    def set_date_range(self, start_date, end_date, strict=True):
         '''
         params:
         start_date: (if None, any date is OK as start date), as datetime
@@ -39,7 +40,13 @@ class WebWideSource(Source):
         params:
         hosts: If None or empty list, any host is OK. Example: ['cbc.ca']
         '''
+        super().__init__()
+
         self.hosts = hosts
+        self.keywords = []
+
+    def set_keywords(self, keywords=[]):
+        self.keywords = keywords
 
 class CommonCrawl(WebWideSource):
     '''
@@ -51,9 +58,14 @@ class CommonCrawl(WebWideSource):
         params:
         store_path: Path to directory where downloaded files will be kept
         '''
+        super().__init__(hosts)
 
         self.store_path = store_path
-        super().__init__(hosts)
+
+        # flag to show this source works via callbacks due to long running process
+        self.uses_callback = True
+        self.can_keyword_filter = True
+
 
     def fetch(self, collector_cb):
 
@@ -65,24 +77,47 @@ class CommonCrawl(WebWideSource):
         if not os.path.exists(warc_dir_path):
             os.makedirs(warc_dir_path)
 
-        newsplease.commoncrawl_crawler.crawl_from_commoncrawl(self.article_cb,
-                                                              valid_hosts=self.hosts,
-                                                              start_date=self.start_date,
-                                                              end_date=self.end_date,
-                                                              strict_date=self.strict,
-                                                              # if True, the script checks whether a file has been downloaded already and uses that file instead of downloading
-                                                              # again. Note that there is no check whether the file has been downloaded completely or is valid!
-                                                              reuse_previously_downloaded_files=True,
-                                                              local_download_dir_warc=warc_dir_path,
-                                                              continue_after_error=True,
-                                                              show_download_progress=True,
-                                                              number_of_extraction_processes=1,
-                                                              log_level=logging.INFO,
-                                                              delete_warc_after_extraction=False,
-                                                              # if True, will continue extraction from the latest fully downloaded but not fully extracted WARC files and then
-                                                              # crawling new WARC files. This assumes that the filter criteria have not been changed since the previous run!
-                                                              continue_process=False,
-                                                              fetch_images=False)
+        # filter by keyword as early as possible
+        if self.keywords:
+            keywords = self.keywords
+
+            # create a class for newsplease lib that can filter by keyword
+            class FilterExtractorClass(commoncrawl_extractor.CommonCrawlExtractor):
+                def filter_record(self, warc_record, article=None):
+                    keep, article = super().filter_record(warc_record, article=article)
+
+                    if not keep:
+                        return keep, article
+
+                    if filter.contains_keywords(article, keywords):
+                        return True, article
+                    else:
+                        return False, article
+
+            custom_extractor_cls = FilterExtractorClass
+        else:
+            custom_extractor_cls = commoncrawl_extractor.CommonCrawlExtractor
+
+
+        commoncrawl_crawler.crawl_from_commoncrawl(self.article_cb,
+                                                   valid_hosts=self.hosts,
+                                                   start_date=self.start_date,
+                                                   end_date=self.end_date,
+                                                   strict_date=self.strict,
+                                                   # if True, the script checks whether a file has been downloaded already and uses that file instead of downloading
+                                                   # again. Note that there is no check whether the file has been downloaded completely or is valid!
+                                                   reuse_previously_downloaded_files=True,
+                                                   local_download_dir_warc=warc_dir_path,
+                                                   continue_after_error=True,
+                                                   show_download_progress=True,
+                                                   number_of_extraction_processes=1,
+                                                   log_level=logging.INFO,
+                                                   delete_warc_after_extraction=False,
+                                                   # if True, will continue extraction from the latest fully downloaded but not fully extracted WARC files and then
+                                                   # crawling new WARC files. This assumes that the filter criteria have not been changed since the previous run!
+                                                   continue_process=False,
+                                                   fetch_images=False,
+                                                   extractor_cls=custom_extractor_cls)
 
     def article_cb(self, np_article):
         '''
@@ -113,12 +148,13 @@ class CommonCrawl(WebWideSource):
 class SearchEngineSource(WebWideSource):
 
     # TODO this is incorrect syntax for param expansion, fix
-    def __init__(self, *args, **kwargs):
-        self.keywords = []
-        super().__init__(args, kwargs)
+    def __init__(self, hosts):
+        
+        # flag to show this source returns in a timely fashion without callbacks
+        self.uses_callback = False
+        self.can_keyword_filter = True
 
-    def set_keywords(self, keywords=[]):
-        self.keywords = keywords
+        super().__init__(hosts)
 
 class Google(SearchEngineSource):
     '''
@@ -132,7 +168,7 @@ class Google(SearchEngineSource):
 
         super().__init__(hosts)
 
-    def fetch(self, collector_cb):
+    def fetch(self):
 
         service = gbuild("customsearch", "v1",
             developerKey=self.dev_key)
@@ -144,10 +180,13 @@ class Google(SearchEngineSource):
             cx=self.engine_id,
         ).execute()
 
-        for res in results:
-            article = self.convert(res)
-            collector_cb(article)
+        return [ self.convert(res) for res in results ]
 
     def convert(self, res):
         article = NewsArticle()
         return article
+
+
+class Bing(SearchEngineSource):
+    def __init__(self):
+        raise NotImplementedError()

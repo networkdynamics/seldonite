@@ -1,4 +1,4 @@
-
+import filter
 
 class Collector:
     '''
@@ -8,10 +8,46 @@ class Collector:
     '''
     def __init__(self, source):
         self.source = source
+        self.use_callback = self.source.use_callback
 
-    def by_keyword(self):
-        pass
+    def set_date_range(self, start_date, end_date):
+        '''
+        Set dates to fetch news from, range is inclusive
+        '''
+        self.source.set_date_range(start_date, end_date)
 
-    def fetch(self):
-        news = []
-        return news
+    def by_keywords(self, keywords):
+        '''
+        Set some keywords to filter by
+        '''
+
+        self.keywords = keywords
+
+        if self.source.can_keyword_filter:
+            self.source.set_keywords(keywords)
+
+    def fetch(self, cb=None):
+
+        if self.source.uses_callback and cb is None:
+            raise TypeError('Source used requires a callback function to be provided.')
+
+        self.caller_cb = cb
+
+        if self.source.uses_callback:
+            self.source.fetch(self.accumulate)
+        else:
+            articles = self.source.fetch()
+
+        if self.keywords and not self.source.can_keyword_filter:
+            return [ article for article in articles if filter.contains_keywords(article, self.keywords) ]
+
+        return articles
+
+    def accumulate(self, article):
+
+        if self.keywords and not self.source.can_keyword_filter:
+            if filter.contains_keywords(article, self.keywords):
+                self.caller_cb(article)
+
+        else:
+            self.caller_cb(article)
