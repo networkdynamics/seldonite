@@ -1,4 +1,4 @@
 # Seldonite
-Seldon's Element: A News Event Representation Library
+Seldon's Element: Your Foundation for News Event Representation
 
 Please see the wiki
