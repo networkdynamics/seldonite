@@ -5,9 +5,7 @@ Define a news source, set your search method, and create event representations.
 
 Usage (WIP):
 ```python
-from seldonite import source
-from seldonite import collect
-from seldonite import represent
+from seldonite import source, collect, represent
 
 sites = ['cbc.ca', 'bbc.com']
 source = source.CommonCrawl(sites)
