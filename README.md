@@ -34,5 +34,6 @@ We use `pytest` here.
 
 To run tests:
 `pytest`
+
 Or:
 `make test`
