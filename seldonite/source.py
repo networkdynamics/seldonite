@@ -3,7 +3,9 @@ import os
 
 from article import NewsArticle
 import filter
+import utils
 
+import newspaper
 from newsplease import commoncrawl_extractor, commoncrawl_crawler
 from googleapiclient.discovery import build as gbuild
 
@@ -173,18 +175,30 @@ class Google(SearchEngineSource):
         service = gbuild("customsearch", "v1",
             developerKey=self.dev_key)
 
+        # construct keywords into query
         query = ' '.join(self.keywords)
 
-        results = service.cse().list(
-            q=query,
-            cx=self.engine_id,
-        ).execute()
+        # using siterestrict allows more than 10000 calls per day
+        # note both methods still require payment for more than 100 requests a day
+        if self.hosts:
+            method = service.cse()
+        else:
+            method = service.cse().siterestrict()
 
-        return [ self.convert(res) for res in results ]
+        # google custom search returns max of 100 results
+        # each page contains max 10 results
+        for page_num in range(10):
+            results = method.list(
+                q=query,
+                cx=self.engine_id,
+                start=str((page_num * 10) + 1)
+            ).execute()
 
-    def convert(self, res):
-        article = NewsArticle()
-        return article
+            items = results['items']
+
+            for item in items:
+                link = item['link']
+                yield utils.link_to_article(link)
 
 
 class Bing(SearchEngineSource):

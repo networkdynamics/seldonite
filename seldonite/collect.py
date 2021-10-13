@@ -39,7 +39,9 @@ class Collector:
             articles = self.source.fetch()
 
         if self.keywords and not self.source.can_keyword_filter:
-            return [ article for article in articles if filter.contains_keywords(article, self.keywords) ]
+            for article in articles:
+                if filter.contains_keywords(article, self.keywords):
+                    yield article
 
         return articles
 
