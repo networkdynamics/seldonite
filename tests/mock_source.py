@@ -2,4 +2,7 @@ from seldonite import source
 
 class MockSource(source.Source):
     def __init__(self):
-        pass
+        super().__init__()
+
+    def fetch(self):
+        return []

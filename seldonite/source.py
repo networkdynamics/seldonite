@@ -5,7 +5,6 @@ from seldonite.article import NewsArticle
 from seldonite import filter
 from seldonite import utils
 
-import newspaper
 from newsplease.crawler import commoncrawl_extractor, commoncrawl_crawler
 from googleapiclient.discovery import build as gbuild
 
@@ -19,6 +18,8 @@ class Source:
 
     # TODO make abstract
     def __init__(self):
+        # flag to show this source returns in a timely fashion without callbacks, unless overriden
+        self.uses_callback = False
         self.can_keyword_filter = False
 
     def set_date_range(self, start_date, end_date, strict=True):
@@ -31,6 +32,9 @@ class Source:
         self.start_date = start_date
         self.end_date = end_date
         self.strict = strict
+
+    def fetch(self):
+        raise NotImplementedError()
 
 class WebWideSource(Source):
     '''
@@ -151,12 +155,11 @@ class SearchEngineSource(WebWideSource):
 
     # TODO this is incorrect syntax for param expansion, fix
     def __init__(self, hosts):
-        
-        # flag to show this source returns in a timely fashion without callbacks
-        self.uses_callback = False
+        super().__init__(hosts)
+
         self.can_keyword_filter = True
 
-        super().__init__(hosts)
+        
 
 class Google(SearchEngineSource):
     '''
@@ -164,11 +167,10 @@ class Google(SearchEngineSource):
     '''
 
     def __init__(self, dev_key, engine_id, hosts=[]):
+        super().__init__(hosts)
 
         self.dev_key = dev_key
         self.engine_id = engine_id
-
-        super().__init__(hosts)
 
     def fetch(self):
 

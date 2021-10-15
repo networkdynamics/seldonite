@@ -8,7 +8,7 @@ class Collector:
     '''
     def __init__(self, source):
         self.source = source
-        self.use_callback = self.source.use_callback
+        self.uses_callback = self.source.uses_callback
 
     def set_date_range(self, start_date, end_date):
         '''
