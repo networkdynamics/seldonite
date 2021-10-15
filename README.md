@@ -38,3 +38,7 @@ To run tests, run these commands from the top level directory:
 
 Or:
 `make test`
+
+## Credits
+
+Spark based pipeline based on Sebastien Nagel's [cc-pyspark](https://github.com/commoncrawl/cc-pyspark) library.
