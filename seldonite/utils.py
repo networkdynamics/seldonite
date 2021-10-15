@@ -1,4 +1,4 @@
-from seldonite import article
+from seldonite import model
 
 import newspaper
 
@@ -8,10 +8,10 @@ def link_to_article(link):
     np_article.download()
     np_article.parse()
 
-    this_article = article.NewsArticle()
+    article = model.NewsArticle()
 
-    this_article.authors = np_article.authors
-    this_article.title = np_article.title
-    this_article.text = np_article.text
+    article.authors = np_article.authors
+    article.title = np_article.title
+    article.content = np_article.content
 
-    return this_article
+    return article

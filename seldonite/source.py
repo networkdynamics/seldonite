@@ -1,7 +1,7 @@
 import logging
 import os
 
-from seldonite.article import NewsArticle
+from seldonite.model import NewsArticle
 from seldonite import filter
 from seldonite import utils
 

@@ -43,7 +43,8 @@ class Collector:
                 if filter.contains_keywords(article, self.keywords):
                     yield article
 
-        return articles
+        for article in articles:
+            yield article
 
     def accumulate(self, article):
 
