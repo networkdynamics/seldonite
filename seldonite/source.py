@@ -54,7 +54,7 @@ class WebWideSource(Source):
     def set_keywords(self, keywords=[]):
         self.keywords = keywords
 
-class CommonCrawl(WebWideSource):
+class CommonCrawlWithNewsPlease(WebWideSource):
     '''
     Source that uses the news-please library to search CommonCrawl
     '''
