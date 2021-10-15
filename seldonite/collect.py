@@ -1,4 +1,4 @@
-import filter
+from seldonite import filter
 
 class Collector:
     '''

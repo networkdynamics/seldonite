@@ -1,12 +1,12 @@
 import logging
 import os
 
-from article import NewsArticle
-import filter
-import utils
+from seldonite.article import NewsArticle
+from seldonite import filter
+from seldonite import utils
 
 import newspaper
-from newsplease import commoncrawl_extractor, commoncrawl_crawler
+from newsplease.crawler import commoncrawl_extractor, commoncrawl_crawler
 from googleapiclient.discovery import build as gbuild
 
 # TODO make abstract

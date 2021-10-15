@@ -1,4 +1,4 @@
-import article
+from seldonite import article
 
 import newspaper
 

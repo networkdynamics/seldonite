@@ -1,4 +1,4 @@
-from ..seldonite import collect
+from seldonite import collect
 import mock_source
 
 def test_fetch():

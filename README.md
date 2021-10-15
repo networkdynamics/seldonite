@@ -32,7 +32,8 @@ Or if you have make:
 
 We use `pytest` here.
 
-To run tests:
+To run tests, run these commands from the top level directory:
+`pip install --edit .`
 `pytest`
 
 Or:
