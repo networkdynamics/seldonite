@@ -1,11 +1,11 @@
 import logging
 import os
 
-from seldonite.model import NewsArticle
-from seldonite import filter
-from seldonite import utils
+from seldonite.model import Article
+from seldonite.helpers import filter, heuristics, utils
 
 from newsplease.crawler import commoncrawl_extractor, commoncrawl_crawler
+from newsplease.helper_classes.heuristics import Heuristics
 from googleapiclient.discovery import build as gbuild
 
 # TODO make abstract
@@ -21,6 +21,8 @@ class Source:
         # flag to show this source returns in a timely fashion without callbacks, unless overriden
         self.uses_callback = False
         self.can_keyword_filter = False
+        # we need to filter for only news articles by default
+        self.news_only = False
 
     def set_date_range(self, start_date, end_date, strict=True):
         '''
@@ -34,6 +36,17 @@ class Source:
         self.strict = strict
 
     def fetch(self):
+        articles = self._fetch()
+
+        for article in articles:
+            if self.news_only:
+                yield article
+            # apply newsplease heuristics to get only articles
+            else:
+                if heuristics.og_type(article):
+                    yield article
+
+    def _fetch(self):
         raise NotImplementedError()
 
 class WebWideSource(Source):
@@ -66,6 +79,8 @@ class CommonCrawlWithNewsPlease(WebWideSource):
         '''
         super().__init__(hosts)
 
+        raise NotImplemented('Not fully implemented!')
+
         self.store_path = store_path
 
         # flag to show this source works via callbacks due to long running process
@@ -73,7 +88,7 @@ class CommonCrawlWithNewsPlease(WebWideSource):
         self.can_keyword_filter = True
 
 
-    def fetch(self, collector_cb):
+    def _fetch(self, collector_cb):
 
         # keep the collector_cb for this class cb to call
         self.collector_cb = collector_cb
@@ -125,30 +140,10 @@ class CommonCrawlWithNewsPlease(WebWideSource):
                                                    fetch_images=False,
                                                    extractor_cls=custom_extractor_cls)
 
-    def article_cb(self, np_article):
+    def article_cb(self, article):
         '''
         Convert newsplease article to seldonite article and send to collector
         '''
-
-        article = NewsArticle()
-
-        article.authors = np_article.authors
-        article.date_download = np_article.date_download
-        article.date_modify = np_article.date_modify
-        article.date_publish = np_article.date_publish
-        article.description = np_article.description
-        article.filename = np_article.filename
-        article.image_url = np_article.image_url
-        article.language = np_article.language
-        article.localpath = np_article.localpath
-        article.source_domain = np_article.source_domain
-        article.maintext = np_article.maintext
-        article.text = np_article.text
-        article.title = np_article.title
-        article.title_page = np_article.title_page
-        article.title_rss = np_article.title_rss
-        article.url = np_article.url
-
         self.collector_cb(article)
 
 class SearchEngineSource(WebWideSource):
@@ -173,7 +168,7 @@ class Google(SearchEngineSource):
         self.engine_id = engine_id
         self.limit_request = limit_request
 
-    def fetch(self):
+    def _fetch(self):
 
         service = gbuild("customsearch", "v1",
             developerKey=self.dev_key)

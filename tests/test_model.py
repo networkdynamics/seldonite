@@ -1,19 +1,17 @@
 import json
 
-from seldonite.model import NewsArticle
+from seldonite.model import Article
 
 import pytest
 
 @pytest.mark.parametrize("article_data",
-    [({"authors": ["Someone", "Someone Else"], "domain": "cbc.ca", "content": "Something happened", "title": "Woah!", "url": "cbc.ca/thing"})])
+    [({"title": "Woah!", "text": "Something happened", "authors": ["Someone", "Someone Else"], "url": "https://cbc.ca/thing"})])
 def test_json(article_data):
-    article = NewsArticle()
+    article = Article(article_data["url"])
     article.authors = article_data["authors"]
-    article.domain = article_data["domain"]
-    article.content = article_data["content"]
+    article.text = article_data["text"]
     article.title = article_data["title"]
-    article.url = article_data["url"]
 
-    json_articles = json.dumps([ article ])
+    json_articles = json.dumps([ article.to_dict() ])
     json_article_data = json.dumps([ article_data ])
     assert json_articles == json_article_data

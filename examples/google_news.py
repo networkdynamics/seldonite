@@ -14,7 +14,7 @@ def main(args):
     collector.by_keywords([args.keyword])
     articles = collector.fetch()
 
-    json_articles = json.dumps(list(articles), indent=2)
+    json_articles = json.dumps([article.to_dict() for article in articles], indent=2)
     if args.out:
         with open(args.out, 'w') as f:
             f.write(json_articles)

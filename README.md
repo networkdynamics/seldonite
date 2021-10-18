@@ -41,4 +41,5 @@ Or:
 
 ## Credits
 
-Spark based pipeline based on Sebastien Nagel's [cc-pyspark](https://github.com/commoncrawl/cc-pyspark) library.
+* Spark based pipeline based on Sebastien Nagel's [cc-pyspark](https://github.com/commoncrawl/cc-pyspark) library. 
+* Heuristics for News Articles adapted from [newsplease](https://github.com/fhamborg/news-please)

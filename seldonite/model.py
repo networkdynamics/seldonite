@@ -1,21 +1,15 @@
+from newspaper.article import Article as NPArticle
 
+class Article(NPArticle):
+    def __init__(self, *args, text = '', **kwargs):
+        super().__init__(*args, **kwargs)
+        self.text = text
 
+    def to_dict(self):
+        article_dict = {}
+        article_dict["title"] = self.title
+        article_dict["text"] = self.text
+        article_dict["authors"] = self.authors
+        article_dict["url"] = self.url
 
-class NewsArticle(dict):
-    def __init__(self, title=None, content=None):
-        dict.__init__(self, authors=None,
-                            domain=None,
-                            content=content,
-                            title=title,
-                            url=None)
-
-    def __getattr__(self, key):
-        val = dict.__getitem__(self, key)
-        return val
-
-    def __setattr__(self, key, val):
-        dict.__setitem__(self, key, val)
-
-    def __repr__(self):
-        dictrepr = dict.__repr__(self)
-        return '%s(%s)' % (type(self).__name__, dictrepr)
+        return article_dict
