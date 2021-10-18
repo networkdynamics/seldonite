@@ -12,6 +12,8 @@ def link_to_article(link):
 
     article.authors = np_article.authors
     article.title = np_article.title
-    article.content = np_article.content
+    article.content = np_article.text
+    article.domain = np_article.source_url
+    article.url = np_article.url
 
     return article

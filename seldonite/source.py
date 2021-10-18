@@ -166,11 +166,12 @@ class Google(SearchEngineSource):
     Source that uses Google's Custom Search JSON API
     '''
 
-    def __init__(self, dev_key, engine_id, hosts=[]):
+    def __init__(self, dev_key, engine_id, hosts=[], limit_request=False):
         super().__init__(hosts)
 
         self.dev_key = dev_key
         self.engine_id = engine_id
+        self.limit_request = limit_request
 
     def fetch(self):
 
@@ -189,7 +190,11 @@ class Google(SearchEngineSource):
 
         # google custom search returns max of 100 results
         # each page contains max 10 results
-        for page_num in range(10):
+
+        num_pages = 10 if not self.limit_request else 1
+
+        # TODO add hosts to query
+        for page_num in range(num_pages):
             results = method.list(
                 q=query,
                 cx=self.engine_id,

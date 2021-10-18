@@ -1,12 +1,21 @@
 
-class NewsArticle:
+
+
+class NewsArticle(dict):
     def __init__(self, title=None, content=None):
-        self.authors = []
-        self.date_download = None
-        self.date_modify = None
-        self.date_publish = None
-        self.language = None
-        self.source_domain = None
-        self.content = content
-        self.title = title
-        self.url = None
+        dict.__init__(self, authors=None,
+                            domain=None,
+                            content=content,
+                            title=title,
+                            url=None)
+
+    def __getattr__(self, key):
+        val = dict.__getitem__(self, key)
+        return val
+
+    def __setattr__(self, key, val):
+        dict.__setitem__(self, key, val)
+
+    def __repr__(self):
+        dictrepr = dict.__repr__(self)
+        return '%s(%s)' % (type(self).__name__, dictrepr)
