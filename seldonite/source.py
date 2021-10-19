@@ -73,12 +73,17 @@ class CommonCrawl(WebWideSource):
         '''
         super().__init__(hosts)
 
-        self.url = f"{ip}:{port}"
+        self.spark_master_url = f"{ip}:{port}"
         self.can_keyword_filter = True
-
+        self.crawl_version = "CC-MAIN-2017-13"
 
     def _fetch(self):
-        job = CCIndexFetchNewsJob(self.url)
+
+        # get wet file listings from common crawl
+        listing = utils.get_crawl_listing(self.crawl_version)
+
+        # create the spark job
+        job = CCIndexFetchNewsJob(spark_master_url=self.spark_master_url)
         job.run()
 
 class SearchEngineSource(WebWideSource):

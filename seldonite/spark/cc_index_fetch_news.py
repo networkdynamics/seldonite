@@ -3,8 +3,8 @@ from collections import Counter
 from bs4 import BeautifulSoup
 from bs4.dammit import EncodingDetector
 
-from sparkcc import CCIndexWarcSparkJob
-from fetch_news import FetchNewsJob
+from seldonite.spark.sparkcc import CCIndexWarcSparkJob
+from seldonite.spark.fetch_news import FetchNewsJob
 
 
 class CCIndexFetchNewsJob(CCIndexWarcSparkJob, FetchNewsJob):

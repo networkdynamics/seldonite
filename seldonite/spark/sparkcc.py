@@ -34,11 +34,11 @@ class CCSparkJob:
     warc_input_failed = None
     
 
-    def __init__(self, input=None, num_input_partitions=400, local_temp_dir=None, 
-                 log_level='INFO', spark_profiler=None, url=None):
+    def __init__(self, input_file_listing=None, num_input_partitions=400, local_temp_dir=None, 
+                 log_level='INFO', spark_profiler=None, spark_master_url=None):
 
         # Path to file listing input paths
-        self.input = input
+        self.input_file_listing = input_file_listing
         # Number of input splits/partitions, number of parallel tasks to process WARC files/records
         self.num_input_partitions = num_input_partitions
         # Local temporary directory, used to buffer content from S3
@@ -48,8 +48,7 @@ class CCSparkJob:
         # Enable PySpark profiler and log profiling metrics if job has finished, cf. spark.python.profile
         self.spark_profiler = spark_profiler
         # address of spark master node
-        self.url = url
-
+        self.spark_master_url = spark_master_url
         logging.basicConfig(level=self.log_level, format=LOGGING_FORMAT)
 
 
@@ -77,16 +76,22 @@ class CCSparkJob:
             .getLogger(self.name)
 
     def run(self):
-        self.args = self.parse_arguments()
-
         conf = SparkConf()
 
         if self.spark_profiler:
             conf = conf.set("spark.python.profile", "true")
 
+        # add packages to allow pulling from AWS S3
+        conf.set('spark.jars.packages', 'org.apache.hadoop:hadoop-common:3.2.0,org.apache.hadoop:hadoop-aws:3.2.0,com.amazonaws:aws-java-sdk:1.11.375')
+
+        # anon creds for aws
+        conf.set('spark.hadoop.fs.s3a.aws.credentials.provider', 'org.apache.hadoop.fs.s3a.AnonymousAWSCredentialsProvider')
+
+        master_url = f"spark://{self.spark_master_url}"
         sc = SparkContext(
-            appName=self.name,
-            conf=conf)
+            master=master_url,
+            appName=self.name)
+        
         sqlc = SQLContext(sparkContext=sc)
 
         self.init_accumulators(sc)
@@ -114,7 +119,7 @@ class CCSparkJob:
         return a + b
 
     def run_job(self, sc, sqlc):
-        input_data = sc.textFile(self.input,
+        input_data = sc.textFile(self.input_file_listing,
                                  minPartitions=self.num_input_partitions)
 
         output = input_data.mapPartitionsWithIndex(self.process_warcs) \
@@ -232,7 +237,7 @@ class CCIndexSparkJob(CCSparkJob):
     # description of input and output shown in --help
     input_descr = "Path to Common Crawl index table"
 
-    def __init__(self, table='ccindex', query=None, table_schema=None, **kwargs):
+    def __init__(self, table_path='s3a://commoncrawl/cc-index/table/cc-main/warc/', table='ccindex', query="SELECT url, warc_filename, warc_record_offset, warc_record_length, content_charset FROM ccindex WHERE crawl = 'CC-MAIN-2020-24' AND subset = 'warc' LIMIT 10", table_schema=None, **kwargs):
         super().__init__(**kwargs)
         # Name of the table data is loaded into
         self.table = table
@@ -240,8 +245,10 @@ class CCIndexSparkJob(CCSparkJob):
         self.query = query
         # JSON schema of the ccindex table, implied from Parquet files if not provided.
         self.table_schema = table_schema
+        # path to default common crawl index
+        self.table_path = table_path
 
-    def load_table(self, sc, spark, table_path, table_name):
+    def load_table(self, sc, spark):
         parquet_reader = spark.read.format('parquet')
         if self.table_schema is not None:
             self.get_logger(sc).info(
@@ -249,10 +256,10 @@ class CCIndexSparkJob(CCSparkJob):
             with open(self.table_schema, 'r') as s:
                 schema = StructType.fromJson(json.loads(s.read()))
             parquet_reader = parquet_reader.schema(schema)
-        df = parquet_reader.load(table_path)
-        df.createOrReplaceTempView(table_name)
+        df = parquet_reader.load(self.table_path)
+        df.createOrReplaceTempView(self.table_name)
         self.get_logger(sc).info(
-            "Schema of table {}:\n{}".format(table_name, df.schema))
+            "Schema of table {}:\n{}".format(self.table_name, df.schema))
 
     def execute_query(self, sc, spark, query):
         sqldf = spark.sql(query)
@@ -263,7 +270,7 @@ class CCIndexSparkJob(CCSparkJob):
     def load_dataframe(self, sc, partitions=-1):
         session = SparkSession.builder.config(conf=sc.getConf()).getOrCreate()
         if self.query is not None:
-            self.load_table(sc, session, self.input, self.table)
+            self.load_table(sc, session)
             sqldf = self.execute_query(sc, session, self.query)
         else:
             sqldf = session.read.format("csv").option("header", True) \
@@ -300,7 +307,7 @@ class CCIndexWarcSparkJob(CCIndexSparkJob):
 
     name = "CCIndexWarcSparkJob"
 
-    def __init__(self, query=None, csv=None, **kwargs):
+    def __init__(self, query="SELECT url, warc_filename, warc_record_offset, warc_record_length, content_charset FROM ccindex WHERE crawl = 'CC-MAIN-2020-24' AND subset = 'warc' LIMIT 10", csv=None, **kwargs):
         super().__init__(**kwargs)
         # SQL query to select rows. 
         # Note: the result is required to contain the columns `url', `warc_filename', `warc_record_offset' and `warc_record_length', make sure they're SELECTed. 

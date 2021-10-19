@@ -8,7 +8,7 @@ from seldonite import collect
 def main(args):
 
     hosts = [args.host]
-    google_source = source.CommonCrawl(ip=args.ip, port=args.port, hosts=hosts, max_requests=1)
+    google_source = source.CommonCrawl(ip=args.ip, port=args.port, hosts=hosts)
 
     collector = collect.Collector(google_source)
     collector.by_keywords([args.keyword])

@@ -4,7 +4,7 @@ from collections import Counter
 
 from pyspark.sql.types import StructType, StructField, StringType, LongType
 
-from sparkcc import CCSparkJob
+from seldonite.spark.sparkcc import CCSparkJob
 
 
 class FetchNewsJob(CCSparkJob):
