@@ -1,11 +1,6 @@
-import logging
-import os
+from seldonite.helpers import heuristics, utils
+from seldonite.spark.cc_index_fetch_news import CCIndexFetchNewsJob
 
-from seldonite.model import Article
-from seldonite.helpers import filter, heuristics, utils
-
-from newsplease.crawler import commoncrawl_extractor, commoncrawl_crawler
-from newsplease.helper_classes.heuristics import Heuristics
 from googleapiclient.discovery import build as gbuild
 
 # TODO make abstract
@@ -67,84 +62,24 @@ class WebWideSource(Source):
     def set_keywords(self, keywords=[]):
         self.keywords = keywords
 
-class CommonCrawlWithNewsPlease(WebWideSource):
+class CommonCrawl(WebWideSource):
     '''
-    Source that uses the news-please library to search CommonCrawl
+    Source that uses Spark to search CommonCrawl
     '''
 
-    def __init__(self, store_path, hosts=[]):
+    def __init__(self, ip='localhost', port=8080, hosts=[]):
         '''
         params:
-        store_path: Path to directory where downloaded files will be kept
         '''
         super().__init__(hosts)
 
-        raise NotImplemented('Not fully implemented!')
-
-        self.store_path = store_path
-
-        # flag to show this source works via callbacks due to long running process
-        self.uses_callback = True
+        self.url = f"{ip}:{port}"
         self.can_keyword_filter = True
 
 
-    def _fetch(self, collector_cb):
-
-        # keep the collector_cb for this class cb to call
-        self.collector_cb = collector_cb
-
-        # create place for warc files
-        warc_dir_path = os.path.join(self.store_path, 'cc_download_warc')
-        if not os.path.exists(warc_dir_path):
-            os.makedirs(warc_dir_path)
-
-        # filter by keyword as early as possible
-        if self.keywords:
-            keywords = self.keywords
-
-            # create a class for newsplease lib that can filter by keyword
-            class FilterExtractorClass(commoncrawl_extractor.CommonCrawlExtractor):
-                def filter_record(self, warc_record, article=None):
-                    keep, article = super().filter_record(warc_record, article=article)
-
-                    if not keep:
-                        return keep, article
-
-                    if filter.contains_keywords(article, keywords):
-                        return True, article
-                    else:
-                        return False, article
-
-            custom_extractor_cls = FilterExtractorClass
-        else:
-            custom_extractor_cls = commoncrawl_extractor.CommonCrawlExtractor
-
-
-        commoncrawl_crawler.crawl_from_commoncrawl(self.article_cb,
-                                                   valid_hosts=self.hosts,
-                                                   start_date=self.start_date,
-                                                   end_date=self.end_date,
-                                                   strict_date=self.strict,
-                                                   # if True, the script checks whether a file has been downloaded already and uses that file instead of downloading
-                                                   # again. Note that there is no check whether the file has been downloaded completely or is valid!
-                                                   reuse_previously_downloaded_files=True,
-                                                   local_download_dir_warc=warc_dir_path,
-                                                   continue_after_error=True,
-                                                   show_download_progress=True,
-                                                   number_of_extraction_processes=1,
-                                                   log_level=logging.INFO,
-                                                   delete_warc_after_extraction=False,
-                                                   # if True, will continue extraction from the latest fully downloaded but not fully extracted WARC files and then
-                                                   # crawling new WARC files. This assumes that the filter criteria have not been changed since the previous run!
-                                                   continue_process=False,
-                                                   fetch_images=False,
-                                                   extractor_cls=custom_extractor_cls)
-
-    def article_cb(self, article):
-        '''
-        Convert newsplease article to seldonite article and send to collector
-        '''
-        self.collector_cb(article)
+    def _fetch(self):
+        job = CCIndexFetchNewsJob(self.url)
+        job.run()
 
 class SearchEngineSource(WebWideSource):
 
@@ -161,12 +96,12 @@ class Google(SearchEngineSource):
     Source that uses Google's Custom Search JSON API
     '''
 
-    def __init__(self, dev_key, engine_id, hosts=[], limit_request=False):
+    def __init__(self, dev_key, engine_id, hosts=[], max_requests=10):
         super().__init__(hosts)
 
         self.dev_key = dev_key
         self.engine_id = engine_id
-        self.limit_request = limit_request
+        self.max_requests = max_requests
 
     def _fetch(self):
 
@@ -186,7 +121,7 @@ class Google(SearchEngineSource):
         # google custom search returns max of 100 results
         # each page contains max 10 results
 
-        num_pages = 10 if not self.limit_request else 1
+        num_pages = self.max_requests
 
         # TODO add hosts to query
         for page_num in range(num_pages):
