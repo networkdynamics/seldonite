@@ -1,0 +1,295 @@
+{
+  "type": "struct",
+  "fields": [
+    {
+      "name": "url_surtkey",
+      "type": "string",
+      "nullable": false,
+      "metadata": {
+        "description": "SURT URL key",
+        "example": "com,example)/path/index.html"
+      }
+    },
+    {
+      "name": "url",
+      "type": "string",
+      "nullable": false,
+      "metadata": {
+        "description": "URL string",
+        "example": "https://www.example.com/path/index.html"
+      }
+    },
+    {
+      "name": "url_host_name",
+      "type": "string",
+      "nullable": false,
+      "metadata": {
+        "description": "Hostname, including IP addresses",
+        "example": "www.example.com"
+      }
+    },
+    {
+      "name": "url_host_tld",
+      "nullable": true,
+      "type": "string",
+      "metadata": {
+        "description": "Top-level domain or last part of the hostname",
+        "example": "com for the hostname www.example.com"
+      }
+    },
+    {
+      "name": "url_host_2nd_last_part",
+      "nullable": true,
+      "type": "string",
+      "metadata": {
+        "description": "Second last part of the hostname",
+        "example": "example for the hostname www.example.com, co for bbc.co.uk"
+      }
+    },
+    {
+      "name": "url_host_3rd_last_part",
+      "nullable": true,
+      "type": "string",
+      "metadata": {
+        "description": "Third last part of the hostname",
+        "example": "www for the hostname www.example.com"
+      }
+    },
+    {
+      "name": "url_host_4th_last_part",
+      "nullable": true,
+      "type": "string",
+      "metadata": {
+        "description": "4th last part of the hostname",
+        "example": "host1 for the host1.subdomain.example.com"
+      }
+    },
+    {
+      "name": "url_host_5th_last_part",
+      "nullable": true,
+      "type": "string",
+      "metadata": {
+        "description": "5th last part of the hostname",
+        "example": "host1 for the host1.sub2.subdomain.example.com"
+      }
+    },
+    {
+      "name": "url_host_registry_suffix",
+      "type": "string",
+      "nullable": true,
+      "metadata": {
+        "description": "Public suffix of domain registry",
+        "example": "com, co.uk"
+      }
+    },
+    {
+      "name": "url_host_registered_domain",
+      "type": "string",
+      "nullable": true,
+      "metadata": {
+        "description": "Domain name of the host (one level below the registry suffix)",
+        "example": "example.com, bbc.co.uk"
+      }
+    },
+    {
+      "name": "url_host_private_suffix",
+      "type": "string",
+      "nullable": true,
+      "metadata": {
+        "description": "Suffix of domain registries including private registrars",
+        "example": "com, co.uk, but also s3.amazonaws.com or blogspot.com"
+      }
+    },
+    {
+      "name": "url_host_private_domain",
+      "type": "string",
+      "nullable": true,
+      "metadata": {
+        "description": "Domain name of the host (one level below the private suffix)",
+        "example": "commoncrawl.s3.amazonaws.com or myblog.blogspot.com"
+      }
+    },
+    {
+      "name": "url_protocol",
+      "type": "string",
+      "nullable": false,
+      "metadata": {
+        "description": "Protocol of the URL",
+        "example": "https"
+      }
+    },
+    {
+      "name": "url_port",
+      "type": "integer",
+      "nullable": true,
+      "metadata": {
+        "description": "Port of the URL (null if not explicitly specified in URL)",
+        "example": "8443"
+      }
+    },
+    {
+      "name": "url_path",
+      "type": "string",
+      "nullable": false,
+      "metadata": {
+        "description": "File path of the URL",
+        "example": "/path/index.html"
+      }
+    },
+    {
+      "name": "url_query",
+      "type": "string",
+      "nullable": true,
+      "metadata": {
+        "description": "Query part of the URL",
+        "example": "q=abc&lang=en for .../search?q=abc&lang=en"
+      }
+    },
+    {
+      "name": "fetch_time",
+      "type": "timestamp",
+      "nullable": false,
+      "metadata": {
+        "description": "Fetch time (capture time stamp)",
+        "example": "2017-10-24T00:14:32Z"
+      }
+    },
+    {
+      "name": "fetch_status",
+      "type": "short",
+      "nullable": false,
+      "metadata": {
+        "description": "HTTP response status code",
+        "example": "200"
+      }
+    },
+    {
+      "name": "fetch_redirect",
+      "type": "string",
+      "nullable": true,
+      "metadata": {
+        "description": "Target location of HTTP redirect",
+        "example": "https://example.com/"
+      }
+    },
+    {
+      "name": "content_digest",
+      "type": "string",
+      "nullable": true,
+      "metadata": {
+        "description": "SHA-1 content digest (WARC-Payload-Digest)",
+        "example": "CH7IV3XAD3M7A42JARKRLJ3T5PGGCGXD"
+      }
+    },
+    {
+      "name": "content_mime_type",
+      "type": "string",
+      "nullable": true,
+      "metadata": {
+        "description": "Content-Type sent in HTTP response header",
+        "example": "text/xml"
+      }
+    },
+    {
+      "name": "content_mime_detected",
+      "type": "string",
+      "nullable": true,
+      "metadata": {
+        "description": "Content-Type detected based on content (WARC-Identified-Payload-Type)",
+        "example": "application/rss+xml"
+      }
+    },
+    {
+      "name": "content_charset",
+      "type": "string",
+      "nullable": true,
+      "metadata": {
+        "description": "Character set of an HTML page and other text-based document formats",
+        "example": "UTF-8",
+        "since": "CC-MAIN-2018-39"
+      }
+    },
+    {
+      "name": "content_languages",
+      "type": "string",
+      "nullable": true,
+      "metadata": {
+        "description": "Language(s) of a document as ISO-639-3 language code(s), multiple values are separated by a comma",
+        "example": "fra,eng",
+        "since": "CC-MAIN-2018-39"
+      }
+    },
+    {
+      "name": "content_truncated",
+      "type": "string",
+      "nullable": true,
+      "metadata": {
+        "description": "Non-null if the WARC record payload is truncated. The value then indicates the reason for the truncation, cf. https://iipc.github.io/warc-specifications/specifications/warc-format/warc-1.1/#warc-truncated",
+        "enumeration": {
+          "length": "payload exceeds configured maximum length",
+          "time": "fetching exceeded the configured maximum time",
+          "disconnect": "network disconnect or protocol-level error",
+          "unspecified": "other/unknown reason for truncation"
+        }
+      }
+    },
+    {
+      "name": "warc_filename",
+      "type": "string",
+      "nullable": false,
+      "metadata": {
+        "description": "WARC filename/path below s3://commoncrawl/",
+        "example": "crawl-data/CC-MAIN-2017-39/segments/1505818689752.21/warc/CC-MAIN-20170923160736-20170923180736-00256.warc.gz"
+      }
+    },
+    {
+      "name": "warc_record_offset",
+      "type": "integer",
+      "nullable": false,
+      "metadata": {
+        "description": "Offset of the WARC record",
+        "example": "397346194"
+      }
+    },
+    {
+      "name": "warc_record_length",
+      "type": "integer",
+      "nullable": false,
+      "metadata": {
+        "description": "Length of the WARC record",
+        "example": "24662"
+      }
+    },
+    {
+      "name": "warc_segment",
+      "type": "string",
+      "nullable": false,
+      "metadata": {
+        "description": "Segment the WARC file belongs to",
+        "example": "1505818689752.21"
+      }
+    },
+    {
+      "name": "crawl",
+      "type": "string",
+      "nullable": false,
+      "metadata": {
+        "description": "Crawl the capture/record is part of",
+        "example": "CC-MAIN-2017-39"
+      }
+    },
+    {
+      "name": "subset",
+      "type": "string",
+      "nullable": false,
+      "metadata": {
+        "description": "Subset of responses (organized as subdirectory in segments)",
+        "enumeration": {
+          "warc": "successful captures",
+          "crawldiagnostics": "redirects, 404s, and other non-successful captures",
+          "robotstxt": "robots.txt responses"
+        }
+      }
+    }
+  ]
+}

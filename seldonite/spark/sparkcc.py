@@ -241,25 +241,23 @@ class CCIndexSparkJob(CCSparkJob):
     # description of input and output shown in --help
     input_descr = "Path to Common Crawl index table"
 
-    def __init__(self, table_path='s3a://commoncrawl/cc-index/table/cc-main/warc/', table_name='ccindex', query="SELECT url, warc_filename, warc_record_offset, warc_record_length, content_charset FROM ccindex WHERE crawl = 'CC-MAIN-2020-24' AND subset = 'warc' LIMIT 10", table_schema=None, **kwargs):
+    def __init__(self, table_path='s3a://commoncrawl/cc-index/table/cc-main/warc/', table_name='ccindex', query="SELECT url, warc_filename, warc_record_offset, warc_record_length, content_charset FROM ccindex WHERE crawl = 'CC-MAIN-2020-24' AND subset = 'warc' LIMIT 10", **kwargs):
         super().__init__(**kwargs)
         # Name of the table data is loaded into
         self.table_name = table_name
         # SQL query to select rows (required)
         self.query = query
         # JSON schema of the ccindex table, implied from Parquet files if not provided.
-        self.table_schema = table_schema
+        table_schema_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'cc-index-schema-flat.json')
+        
+        with open(table_schema_path, 'r') as s:
+            self.table_schema = StructType.fromJson(json.loads(s.read()))
         # path to default common crawl index
         self.table_path = table_path
 
     def load_table(self, sc, spark):
         parquet_reader = spark.read.format('parquet')
-        if self.table_schema is not None:
-            self.get_logger(sc).info(
-                "Reading table schema from {}".format(self.table_schema))
-            with open(self.table_schema, 'r') as s:
-                schema = StructType.fromJson(json.loads(s.read()))
-            parquet_reader = parquet_reader.schema(schema)
+        parquet_reader = parquet_reader.schema(self.table_schema)
         df = parquet_reader.load(self.table_path)
         df.createOrReplaceTempView(self.table_name)
         self.get_logger(sc).info(
