@@ -49,14 +49,14 @@ class WebWideSource(Source):
     Parent class for web wide sources
     '''
 
-    def __init__(self, hosts=[]):
+    def __init__(self, sites=[]):
         '''
         params:
-        hosts: If None or empty list, any host is OK. Example: ['cbc.ca']
+        sites: If None or empty list, any site is OK. Example: ['cbc.ca']
         '''
         super().__init__()
 
-        self.hosts = hosts
+        self.sites = sites
         self.keywords = []
 
     def set_keywords(self, keywords=[]):
@@ -67,11 +67,11 @@ class CommonCrawl(WebWideSource):
     Source that uses Spark to search CommonCrawl
     '''
 
-    def __init__(self, ip='localhost', port=8080, hosts=[]):
+    def __init__(self, ip='localhost', port=8080, sites=[]):
         '''
         params:
         '''
-        super().__init__(hosts)
+        super().__init__(sites)
 
         self.spark_master_url = f"{ip}:{port}"
         self.can_keyword_filter = True
@@ -83,14 +83,14 @@ class CommonCrawl(WebWideSource):
         listing = utils.get_crawl_listing(self.crawl_version)
 
         # create the spark job
-        job = CCIndexFetchNewsJob(spark_master_url=self.spark_master_url)
+        job = CCIndexFetchNewsJob(spark_master_url=self.spark_master_url, sites=self.sites)
         job.run()
 
 class SearchEngineSource(WebWideSource):
 
     # TODO this is incorrect syntax for param expansion, fix
-    def __init__(self, hosts):
-        super().__init__(hosts)
+    def __init__(self, sites):
+        super().__init__(sites)
 
         self.can_keyword_filter = True
 
@@ -101,8 +101,8 @@ class Google(SearchEngineSource):
     Source that uses Google's Custom Search JSON API
     '''
 
-    def __init__(self, dev_key, engine_id, hosts=[], max_requests=10):
-        super().__init__(hosts)
+    def __init__(self, dev_key, engine_id, sites=[], max_requests=10):
+        super().__init__(sites)
 
         self.dev_key = dev_key
         self.engine_id = engine_id
@@ -118,7 +118,7 @@ class Google(SearchEngineSource):
 
         # using siterestrict allows more than 10000 calls per day
         # note both methods still require payment for more than 100 requests a day
-        if self.hosts:
+        if self.sites:
             method = service.cse()
         else:
             method = service.cse().siterestrict()
@@ -128,7 +128,7 @@ class Google(SearchEngineSource):
 
         num_pages = self.max_requests
 
-        # TODO add hosts to query
+        # TODO add sites to query
         for page_num in range(num_pages):
             results = method.list(
                 q=query,

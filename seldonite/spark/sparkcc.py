@@ -327,6 +327,8 @@ class CCIndexWarcSparkJob(CCIndexSparkJob):
         bucketname = "commoncrawl"
         no_parse = (not self.warc_parse_http_header)
 
+
+        # TODO check for content truncated
         for row in rows:
             url = row['url']
             warc_path = row['warc_filename']

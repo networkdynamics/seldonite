@@ -5,6 +5,7 @@ from bs4.dammit import EncodingDetector
 
 from seldonite.spark.sparkcc import CCIndexWarcSparkJob
 from seldonite.spark.fetch_news import FetchNewsJob
+from seldonite.helpers import utils
 
 
 class CCIndexFetchNewsJob(CCIndexWarcSparkJob, FetchNewsJob):
@@ -15,6 +16,11 @@ class CCIndexFetchNewsJob(CCIndexWarcSparkJob, FetchNewsJob):
 
     records_parsing_failed = None
     records_non_html = None
+
+    def __init__(self, sites=[], limit=None):
+        super().__init__()
+
+        self.query = utils.construct_query(sites, limit)
 
     def init_accumulators(self, sc):
         super().init_accumulators(sc)

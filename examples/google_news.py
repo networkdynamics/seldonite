@@ -7,8 +7,8 @@ from seldonite import collect
 
 def main(args):
 
-    hosts = [args.host]
-    google_source = source.Google(dev_key=args.dev_key, engine_id=args.engine_id, hosts=hosts, max_requests=1)
+    sites = [args.site]
+    google_source = source.Google(dev_key=args.dev_key, engine_id=args.engine_id, sites=sites, max_requests=1)
 
     collector = collect.Collector(google_source)
     collector.by_keywords([args.keyword])
@@ -25,7 +25,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--dev-key')
     parser.add_argument('--engine-id')
-    parser.add_argument('--host')
+    parser.add_argument('--site')
     parser.add_argument('--keyword')
     parser.add_argument('--out')
     args = parser.parse_args()
