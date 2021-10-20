@@ -82,15 +82,19 @@ class CCSparkJob:
             conf = conf.set("spark.python.profile", "true")
 
         # add packages to allow pulling from AWS S3
-        conf.set('spark.jars.packages', 'org.apache.hadoop:hadoop-common:3.2.0,org.apache.hadoop:hadoop-aws:3.2.0,com.amazonaws:aws-java-sdk:1.11.375')
+        conf.set('spark.jars.packages', 'org.apache.hadoop:hadoop-aws:3.2.0,com.amazonaws:aws-java-sdk:1.11.375')
+        #conf.set('spark.driver.extraClassPath', '/opt/bitnami/spark/jars/hadoop-aws-3.2.0.jar:/opt/bitnami/spark/jars/aws-java-sdk-bundle-1.11.375.jar')
 
         # anon creds for aws
         conf.set('spark.hadoop.fs.s3a.aws.credentials.provider', 'org.apache.hadoop.fs.s3a.AnonymousAWSCredentialsProvider')
+        conf.set('spark.hadoop.fs.s3a.impl', 'org.apache.hadoop.fs.s3a.S3AFileSystem')
 
         master_url = f"spark://{self.spark_master_url}"
         sc = SparkContext(
             master=master_url,
-            appName=self.name)
+            appName=self.name,
+            conf=conf
+        )
         
         sqlc = SQLContext(sparkContext=sc)
 
@@ -237,10 +241,10 @@ class CCIndexSparkJob(CCSparkJob):
     # description of input and output shown in --help
     input_descr = "Path to Common Crawl index table"
 
-    def __init__(self, table_path='s3a://commoncrawl/cc-index/table/cc-main/warc/', table='ccindex', query="SELECT url, warc_filename, warc_record_offset, warc_record_length, content_charset FROM ccindex WHERE crawl = 'CC-MAIN-2020-24' AND subset = 'warc' LIMIT 10", table_schema=None, **kwargs):
+    def __init__(self, table_path='s3a://commoncrawl/cc-index/table/cc-main/warc/', table_name='ccindex', query="SELECT url, warc_filename, warc_record_offset, warc_record_length, content_charset FROM ccindex WHERE crawl = 'CC-MAIN-2020-24' AND subset = 'warc' LIMIT 10", table_schema=None, **kwargs):
         super().__init__(**kwargs)
         # Name of the table data is loaded into
-        self.table = table
+        self.table_name = table_name
         # SQL query to select rows (required)
         self.query = query
         # JSON schema of the ccindex table, implied from Parquet files if not provided.
