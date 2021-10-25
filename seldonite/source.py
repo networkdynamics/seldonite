@@ -1,7 +1,15 @@
+import time
+
 from seldonite.helpers import heuristics, utils
 from seldonite.spark.cc_index_fetch_news import CCIndexFetchNewsJob
 
 from googleapiclient.discovery import build as gbuild
+import newspaper
+from selenium import webdriver
+from selenium.webdriver.common.keys import Keys
+from selenium.webdriver.support.ui import Select, WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.common.by import By
 
 # TODO make abstract
 class Source:
@@ -19,11 +27,14 @@ class Source:
         # we need to filter for only news articles by default
         self.news_only = False
 
+        self.start_date = None
+        self.end_date = None
+
     def set_date_range(self, start_date, end_date, strict=True):
         '''
         params:
-        start_date: (if None, any date is OK as start date), as datetime
-        end_date: (if None, any date is OK as end date), as datetime
+        start_date: (if None, any date is OK as start date), as date
+        end_date: (if None, any date is OK as end date), as date
         strict: if date filtering is strict and the date of an article could not be detected, the article will be discarded
         '''
         self.start_date = start_date
@@ -89,7 +100,7 @@ class CommonCrawl(WebWideSource):
 class SearchEngineSource(WebWideSource):
 
     # TODO this is incorrect syntax for param expansion, fix
-    def __init__(self, sites):
+    def __init__(self, sites = []):
         super().__init__(sites)
 
         self.can_keyword_filter = True
@@ -141,6 +152,92 @@ class Google(SearchEngineSource):
             for item in items:
                 link = item['link']
                 yield utils.link_to_article(link)
+
+class Eureka(SearchEngineSource):
+    def __init__(self, chromedriver, eureka_url, **kwargs):
+        super().__init__(**kwargs)
+        self.chromedriver = chromedriver
+        self.eureka_url = eureka_url
+
+    def _fetch(self):
+
+        # open up Eureka webpage
+        with webdriver.Chrome(self.chromedriver) as driver:
+            driver.get(self.eureka_url)
+
+            # go to advanced search
+            advanced_search_link = driver.find_element_by_id("advLink")
+            advanced_search_link.click()
+            
+            # Find the search box  
+            textbox = driver.find_element_by_id("Keywords")
+            
+            # Create query for search
+            #textbox.send_keys('TEXT= "Afghanistan"& TEXT= ("withdrawal"|"withdraw"|"U.S.")')
+            textbox.send_keys(f'TEXT= "{" ".join(self.keywords)}"')
+        
+            # Select English Sources only
+            # TODO change this
+            select_source = Select(driver.find_element_by_id('CriteriaSet'))
+            select_source.select_by_value('147890')
+        
+            # Select articles from in date range
+            select_date_type = Select(driver.find_element_by_id('DateFilter_DateRange'))
+
+            if self.start_date and self.end_date:
+                # date range
+                select_date_type.select_by_value('10')
+
+                start_day_picker, end_day_picker = [Select(element) for element in driver.find_elements_by_css_selector("#periodRange .day")]
+                start_month_picker, end_month_picker = [Select(element) for element in driver.find_elements_by_css_selector("#periodRange .month")]
+                start_year_picker, end_year_picker = [Select(element) for element in driver.find_elements_by_css_selector("#periodRange .year")]
+
+                start_day_picker.select_by_value(self.start_date.day)
+                end_day_picker.select_by_value(self.end_date.day)
+
+                start_month_picker.select_by_value(self.start_date.month)
+                end_month_picker.select_by_value(self.end_date.month)
+
+                start_year_picker.select_by_value(self.start_date.year)
+                end_year_picker.select_by_value(self.end_date.year)
+            else:
+                # in all archives
+                select_date_type.select_by_value('9')
+
+            # Complete the search
+            textbox.send_keys(Keys.RETURN)
+
+            # Sort search results by relevance
+            select_sort = Select(driver.find_element_by_id('ddlSort'))
+            select_sort.select_by_value('1')
+
+            # Wait to load page -- adjust as required
+            delay = 7
+            doc0 = WebDriverWait(driver, delay).until(EC.presence_of_element_located((By.ID, 'doc0')))
+
+            # get first document
+            doc0 = doc0.find_element_by_css_selector('.docList-links')
+            doc0.click()
+
+            while True:
+
+                # get article title
+                delay = 5
+                article_title_element = WebDriverWait(driver, delay).until(EC.presence_of_element_located((By.CLASS_NAME, 'titreArticleVisu')))
+                article_title = article_title_element.text
+
+                article = newspaper.Article(driver.current_url)
+                article.download(input_html=driver.page_source)
+                article.parse()
+                article.set_title(article_title)
+
+                yield article
+
+                next_doc_button = driver.find_element_by_id('nextDoc')
+                if not next_doc_button.is_displayed():
+                    break
+
+                next_doc_button.click()
 
 
 class Bing(SearchEngineSource):
