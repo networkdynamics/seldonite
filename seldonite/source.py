@@ -1,10 +1,10 @@
 import time
 
 from seldonite.helpers import heuristics, utils
+from seldonite.model import Article
 from seldonite.spark.cc_index_fetch_news import CCIndexFetchNewsJob
 
 from googleapiclient.discovery import build as gbuild
-import newspaper
 from selenium import webdriver
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.ui import Select, WebDriverWait
@@ -154,10 +154,17 @@ class Google(SearchEngineSource):
                 yield utils.link_to_article(link)
 
 class Eureka(SearchEngineSource):
-    def __init__(self, chromedriver, eureka_url, **kwargs):
+    def __init__(self, chromedriver, eureka_url, username=None, password=None, **kwargs):
         super().__init__(**kwargs)
+
+        self.news_only = True
+
         self.chromedriver = chromedriver
         self.eureka_url = eureka_url
+
+        # only needed if sign in necessary
+        self.username = username
+        self.password = password
 
     def _fetch(self):
 
@@ -165,8 +172,25 @@ class Eureka(SearchEngineSource):
         with webdriver.Chrome(self.chromedriver) as driver:
             driver.get(self.eureka_url)
 
+            if not driver.find_elements_by_css_selector('#advLink'):
+
+                if self.username is None or self.password is None:
+                    raise ValueError('Username and password must be provided.')
+
+                # deal with login page
+                username_enter = driver.find_element_by_css_selector("[name=j_username]")
+                password_enter = driver.find_element_by_css_selector("[name=j_password]")
+
+                username_enter.send_keys(self.username)
+                password_enter.send_keys(self.password)
+
+                # click login
+                enter_button = driver.find_element_by_css_selector("[name=_eventId_proceed]")
+                enter_button.click()
+
             # go to advanced search
-            advanced_search_link = driver.find_element_by_id("advLink")
+            delay = 5
+            advanced_search_link = WebDriverWait(driver, delay).until(EC.presence_of_element_located((By.ID, 'advLink')))
             advanced_search_link.click()
             
             # Find the search box  
@@ -212,21 +236,30 @@ class Eureka(SearchEngineSource):
             select_sort.select_by_value('1')
 
             # Wait to load page -- adjust as required
-            delay = 7
+            delay = 10
             doc0 = WebDriverWait(driver, delay).until(EC.presence_of_element_located((By.ID, 'doc0')))
 
             # get first document
             doc0 = doc0.find_element_by_css_selector('.docList-links')
             doc0.click()
+            article_title = ""
 
             while True:
 
                 # get article title
                 delay = 5
-                article_title_element = WebDriverWait(driver, delay).until(EC.presence_of_element_located((By.CLASS_NAME, 'titreArticleVisu')))
+
+                # janky but it works
+                def page_updated(arg):
+                    elements = driver.find_elements_by_css_selector('.titreArticleVisu')
+                    # check that title exists and that its different from the last title
+                    return elements and len(elements[0].text) > 0 and elements[0].text != article_title
+                
+                WebDriverWait(driver, delay).until(page_updated)
+                article_title_element = driver.find_element_by_css_selector('.titreArticleVisu')
                 article_title = article_title_element.text
 
-                article = newspaper.Article(driver.current_url)
+                article = Article(driver.current_url)
                 article.download(input_html=driver.page_source)
                 article.parse()
                 article.set_title(article_title)
