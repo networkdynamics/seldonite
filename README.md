@@ -25,19 +25,20 @@ Please see the wiki for more detail on sources and methods
 Just run:
 `pip install -r requirements.txt`
 
-Or if you have make:
-`make setup`
+Or if you have make:    `make setup`
 
 ## Tests
 
-We use `pytest` here.
+We use `pytest`.
 
 To run tests, run these commands from the top level directory:
-`pip install --edit .`
-`pytest`
 
-Or:
-`make test`
+```
+pip install --edit .
+pytest
+```
+
+Or: `make test`
 
 ## Credits
 
