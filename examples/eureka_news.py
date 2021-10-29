@@ -7,9 +7,9 @@ from seldonite import collect
 
 def main(args):
 
-    google_source = source.Eureka(args.chrome_driver, args.eureka_url, username=args.username, password=args.password)
+    eureka_source = source.Eureka(args.chrome_driver, args.eureka_url, username=args.username, password=args.password)
 
-    collector = collect.Collector(google_source)
+    collector = collect.Collector(eureka_source)
     collector.by_keywords([args.keyword])
     articles = collector.fetch()
 

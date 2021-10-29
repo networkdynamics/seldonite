@@ -41,7 +41,7 @@ class Collector:
             yield article
 
 
-    def model_topics(self, batch_size=1000):
+    def find_topics(self, batch_size=1000):
         articles = self.fetch()
         prepro = preprocess.Preprocessor()
 
