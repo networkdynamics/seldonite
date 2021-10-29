@@ -112,14 +112,13 @@ class Google(SearchEngineSource):
     Source that uses Google's Custom Search JSON API
     '''
 
-    def __init__(self, dev_key, engine_id, sites=[], max_requests=10):
+    def __init__(self, dev_key, engine_id, sites=[]):
         super().__init__(sites)
 
         self.dev_key = dev_key
         self.engine_id = engine_id
-        self.max_requests = max_requests
 
-    def _fetch(self):
+    def _fetch(self, max_articles=100):
 
         service = gbuild("customsearch", "v1",
             developerKey=self.dev_key)
@@ -137,7 +136,7 @@ class Google(SearchEngineSource):
         # google custom search returns max of 100 results
         # each page contains max 10 results
 
-        num_pages = self.max_requests
+        num_pages = max_articles // 10
 
         # TODO add sites to query
         for page_num in range(num_pages):
