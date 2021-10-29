@@ -254,7 +254,7 @@ class Eureka(SearchEngineSource):
             while True:
 
                 # get article title
-                delay = 5
+                delay = 10
 
                 # janky but it works
                 def page_updated(arg):
