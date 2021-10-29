@@ -22,10 +22,30 @@ Please see the wiki for more detail on sources and methods
 
 ## Setup
 
-Just run:
-`pip install -r requirements.txt`
+To install dependencies via pip:
+```
+pip install -r requirements.txt
+```
+Install seldonite locally to use it:
+```
+pip install --editable .
+```
+To use NLP methods that require the use of spacy:
+```
+python -m spacy download en_core_web_sm
+```
+To use sources that require Selenium, download the chromedriver and place is on your path. For me this goes like this:
+```
+curl -LO https://chromedriver.storage.googleapis.com/94.0.4606.61/chromedriver_linux64.zip
+unzip ./chromedriver_linux64.zip
+mv ./chromedriver /path/to/bin
+rm chromedriver_linux64.zip
+```
 
-Or if you have make:    `make setup`
+Or if you have `make`:
+```
+make setup
+```
 
 ## Tests
 
@@ -38,7 +58,10 @@ pip install --edit .
 pytest
 ```
 
-Or: `make test`
+Or: 
+```
+make test
+```
 
 ## Credits
 

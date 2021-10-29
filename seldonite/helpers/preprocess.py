@@ -4,7 +4,7 @@ import spacy
 class Preprocessor:
 
     def __init__(self):
-        self.nlp = spacy.load('en', disable=['parser', 'tagger', 'ner'])
+        self.nlp = spacy.load('en_core_web_sm', disable=['parser', 'tagger', 'ner'])
     
     def preprocess(self, docs):
         for doc in docs:

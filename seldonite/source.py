@@ -154,7 +154,7 @@ class Google(SearchEngineSource):
                 yield utils.link_to_article(link)
 
 class Eureka(SearchEngineSource):
-    def __init__(self, chromedriver, eureka_url, username=None, password=None, **kwargs):
+    def __init__(self, chromedriver, eureka_url, username=None, password=None, show_browser=False, **kwargs):
         super().__init__(**kwargs)
 
         self.news_only = True
@@ -166,10 +166,17 @@ class Eureka(SearchEngineSource):
         self.username = username
         self.password = password
 
+        self.show_browser = show_browser
+
     def _fetch(self):
 
+        chrome_options = None
+        if not self.show_browser:
+            chrome_options = webdriver.chrome.options.Options()
+            chrome_options.headless = True
+
         # open up Eureka webpage
-        with webdriver.Chrome(self.chromedriver) as driver:
+        with webdriver.Chrome(self.chromedriver, chrome_options=chrome_options) as driver:
             driver.get(self.eureka_url)
 
             if not driver.find_elements_by_css_selector('#advLink'):
