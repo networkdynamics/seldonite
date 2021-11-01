@@ -2,10 +2,9 @@ from seldonite import source
 from seldonite.model import Article
 
 class MockSource(source.Source):
-    def __init__(self, uses_callback=False, can_keyword_filter=False, articles=None):
+    def __init__(self, can_keyword_filter=False, articles=None):
         super().__init__()
 
-        self.uses_callback = uses_callback
         self.can_keyword_filter = can_keyword_filter
         self.articles = articles
 

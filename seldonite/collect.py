@@ -10,7 +10,7 @@ class Collector:
     '''
     def __init__(self, source):
         self.source = source
-        self.uses_callback = self.source.uses_callback
+        self.keywords = None
 
     def set_date_range(self, start_date, end_date):
         '''
@@ -62,16 +62,20 @@ class Collector:
                     break
 
             # TODO add bigrams
-            docs = prepro.preprocess(content_batch)
+            docs = list(prepro.preprocess(content_batch))
 
             if not dictionary:
                 # TODO consider using hashdictionary
                 dictionary = corpora.Dictionary(docs)
-                dictionary.filter_extremes(no_below=5, no_above=0.8)
+
+                no_below = max(1, batch_size // 100)
+                dictionary.filter_extremes(no_below=no_below, no_above=0.9)
             
             corpus = [dictionary.doc2bow(doc) for doc in docs]
 
             if not model:
+                # need to 'load' the dictionary
+                dictionary[0]
                 # TODO use ldamulticore for speed
                 model = models.LdaModel(corpus, 
                                         id2word=dictionary.id2token, 
