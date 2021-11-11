@@ -22,14 +22,11 @@ Please see the wiki for more detail on sources and methods
 
 ## Setup
 
-To install dependencies via pip:
+To install seldonite as editable, and dependencies via pip:
 ```
 pip install -r requirements.txt
 ```
-Install seldonite locally to use it:
-```
-pip install --editable .
-```
+
 To use NLP methods that require the use of spacy:
 ```
 python -m spacy download en_core_web_sm

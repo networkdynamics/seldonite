@@ -17,8 +17,8 @@ class CCIndexFetchNewsJob(CCIndexWarcSparkJob, FetchNewsJob):
     records_parsing_failed = None
     records_non_html = None
 
-    def __init__(self, sites=[], limit=None):
-        super().__init__()
+    def __init__(self, sites=[], limit=None, **kwargs):
+        super().__init__(**kwargs)
 
         self.query = utils.construct_query(sites, limit)
 

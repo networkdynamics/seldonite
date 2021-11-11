@@ -9,3 +9,8 @@ def test_get_crawl_listing(crawl_name):
     assert len(listing) > 0
     assert all(entry.startswith('s3://commoncrawl') for entry in listing)
     assert all(crawl_name in entry for entry in listing)
+
+def test_cc_index_query_builder():
+    sites = ["cbc.ca"]
+    query = utils.construct_query(sites, 10)
+    assert query
