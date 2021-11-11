@@ -33,3 +33,5 @@ def construct_query(sites, limit):
     # set limit to sites if needed
     if limit is not None:
         query += f" LIMIT {str(limit)}"
+
+    return query

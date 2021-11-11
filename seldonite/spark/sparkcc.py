@@ -49,6 +49,7 @@ class CCSparkJob:
         self.spark_profiler = spark_profiler
         # address of spark master node
         self.spark_master_url = spark_master_url
+
         logging.basicConfig(level=self.log_level, format=LOGGING_FORMAT)
 
 
@@ -83,15 +84,16 @@ class CCSparkJob:
 
         # add packages to allow pulling from AWS S3
         conf.set('spark.jars.packages', 'org.apache.hadoop:hadoop-aws:3.2.0,com.amazonaws:aws-java-sdk:1.11.375')
-        #conf.set('spark.driver.extraClassPath', '/opt/bitnami/spark/jars/hadoop-aws-3.2.0.jar:/opt/bitnami/spark/jars/aws-java-sdk-bundle-1.11.375.jar')
+        
+        # set spark container image
+        conf.set('spark.kubernetes.container.image', 'datamechanics/spark:3.2.0-latest')
 
         # anon creds for aws
         conf.set('spark.hadoop.fs.s3a.aws.credentials.provider', 'org.apache.hadoop.fs.s3a.AnonymousAWSCredentialsProvider')
         conf.set('spark.hadoop.fs.s3a.impl', 'org.apache.hadoop.fs.s3a.S3AFileSystem')
 
-        master_url = f"spark://{self.spark_master_url}"
         sc = SparkContext(
-            master=master_url,
+            master=self.spark_master_url,
             appName=self.name,
             conf=conf
         )

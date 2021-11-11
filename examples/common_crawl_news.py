@@ -8,7 +8,7 @@ from seldonite import collect
 def main(args):
 
     sites = [args.site]
-    google_source = source.CommonCrawl(ip=args.ip, port=args.port, sites=sites)
+    google_source = source.CommonCrawl(args.master_url, sites=sites)
 
     collector = collect.Collector(google_source)
     collector.by_keywords([args.keyword])
@@ -23,8 +23,7 @@ def main(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--ip')
-    parser.add_argument('--port')
+    parser.add_argument('--master-url')
     parser.add_argument('--site')
     parser.add_argument('--keyword')
     parser.add_argument('--out')

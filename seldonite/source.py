@@ -78,13 +78,13 @@ class CommonCrawl(WebWideSource):
     Source that uses Spark to search CommonCrawl
     '''
 
-    def __init__(self, ip='localhost', port=8080, sites=[]):
+    def __init__(self, master_url, sites=[]):
         '''
         params:
         '''
         super().__init__(sites)
 
-        self.spark_master_url = f"{ip}:{port}"
+        self.spark_master_url = master_url
         self.can_keyword_filter = True
         self.crawl_version = "CC-MAIN-2017-13"
 
