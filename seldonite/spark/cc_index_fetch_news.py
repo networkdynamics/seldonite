@@ -67,7 +67,5 @@ class CCIndexFetchNewsJob(CCIndexWarcSparkJob, FetchNewsJob):
             return
         page = record.content_stream().read()
         text = self.html_to_text(page, record)
-        words = map(lambda w: w.lower(),
-                    self.word_pattern.findall(text))
-        for word, count in Counter(words).items():
-            yield word, (count, 1)
+
+        return utils.html_to_article("", text)

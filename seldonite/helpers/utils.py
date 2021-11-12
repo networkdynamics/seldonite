@@ -12,6 +12,16 @@ def link_to_article(link):
 
     return article
 
+def html_to_article(url, html, title=None):
+    article = Article(url)
+    article.download(input_html=html)
+    article.parse()
+
+    if title is not None:
+        article.set_title(title)
+
+    return article
+
 def get_crawl_listing(crawl, data_type="wet"):
     url = f"https://commoncrawl.s3.amazonaws.com/crawl-data/{crawl}/{data_type}.paths.gz"
     res = requests.get(url)

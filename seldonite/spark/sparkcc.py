@@ -110,12 +110,14 @@ class CCSparkJob:
 
         self.init_accumulators(sc)
 
-        self.run_job(sc, sqlc)
+        result = self.run_job(sc, sqlc)
 
         if self.spark_profiler:
             sc.show_profiles()
 
         sc.stop()
+
+        return result
 
     def log_aggregator(self, sc, agg, descr):
         self.get_logger(sc).info(descr.format(agg.value))
@@ -204,8 +206,7 @@ class CCSparkJob:
            and allows to access also values from ArchiveIterator, namely
            WARC record offset and length."""
         for record in archive_iterator:
-            for res in self.process_record(record):
-                yield res
+            yield self.process_record(record)
             self.records_processed.add(1)
             # WARC record offset and length should be read after the record
             # has been processed, otherwise the record content is consumed
@@ -365,8 +366,8 @@ class CCIndexWarcSparkJob(CCIndexSparkJob):
                                               no_record_parse=no_parse):
                     # pass `content_charset` forward to subclass processing WARC records
                     record.rec_headers['WARC-Identified-Content-Charset'] = content_charset
-                    for res in self.process_record(record):
-                        yield res
+                    yield self.process_record(record)
+
                     self.records_processed.add(1)
             except ArchiveLoadFailed as exception:
                 self.warc_input_failed.add(1)
@@ -383,14 +384,15 @@ class CCIndexWarcSparkJob(CCIndexSparkJob):
         warc_recs = sqldf.select(*columns).rdd
 
         output = warc_recs.mapPartitions(self.fetch_process_warc_records) \
-            .reduceByKey(self.reduce_by_key_func)
+            .collect()
 
-        sqlc.createDataFrame(output, schema=self.output_schema) \
-            .coalesce(self.num_output_partitions) \
-            .write \
-            .format(self.output_format) \
-            .option("compression", self.output_compression) \
-            .options(**self.get_output_options()) \
-            .saveAsTable(self.output)
+        return output
+        # sqlc.createDataFrame(output, schema=self.output_schema) \
+        #     .coalesce(self.num_output_partitions) \
+        #     .write \
+        #     .format(self.output_format) \
+        #     .option("compression", self.output_compression) \
+        #     .options(**self.get_output_options()) \
+        #     .saveAsTable(self.output)
 
         self.log_aggregators(sc)
