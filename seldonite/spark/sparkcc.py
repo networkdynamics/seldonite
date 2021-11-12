@@ -88,6 +88,14 @@ class CCSparkJob:
         # set spark container image
         conf.set('spark.kubernetes.container.image', 'datamechanics/spark:3.2.0-latest')
 
+        # allow spark worker scaling
+        conf.set('spark.dynamicAllocation.enabled', 'true')
+        conf.set('spark.dynamicAllocation.shuffleTracking.enabled', 'true')
+
+        # specify pod size
+        conf.set('spark.executor.cores', '32')
+        conf.set('spark.kubernetes.executor.request.cores', '28800m')
+
         # anon creds for aws
         conf.set('spark.hadoop.fs.s3a.aws.credentials.provider', 'org.apache.hadoop.fs.s3a.AnonymousAWSCredentialsProvider')
         conf.set('spark.hadoop.fs.s3a.impl', 'org.apache.hadoop.fs.s3a.S3AFileSystem')
