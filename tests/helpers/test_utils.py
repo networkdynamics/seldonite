@@ -10,7 +10,7 @@ def test_get_crawl_listing(crawl_name):
     assert all(entry.startswith('s3://commoncrawl') for entry in listing)
     assert all(crawl_name in entry for entry in listing)
 
-def test_cc_index_query_builder():
-    sites = ["cbc.ca"]
+@pytest.mark.parametrize("sites, query", [(["cbc.ca"], "")])
+def test_cc_index_query_builder(sites, true_query):
     query = utils.construct_query(sites, 10)
-    assert query
+    assert query == true_query
