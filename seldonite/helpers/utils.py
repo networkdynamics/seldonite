@@ -28,7 +28,8 @@ def construct_query(sites, limit):
         raise ValueError("Sites should be the full registered domain, i.e. cbc.ca instead of just cbc")
 
     if sites:
-        query += f" AND url_host_registered_domain IN ({', '.join(sites)})"
+        site_list = ', '.join([f"'{site}'" for site in sites])
+        query += f" AND url_host_registered_domain IN ({site_list})"
 
     # set limit to sites if needed
     if limit is not None:

@@ -10,7 +10,10 @@ def test_get_crawl_listing(crawl_name):
     assert all(entry.startswith('s3://commoncrawl') for entry in listing)
     assert all(crawl_name in entry for entry in listing)
 
-@pytest.mark.parametrize("sites, query", [(["cbc.ca"], "")])
-def test_cc_index_query_builder(sites, true_query):
-    query = utils.construct_query(sites, 10)
+
+@pytest.mark.parametrize("sites, limit, true_query", 
+    [(["cbc.ca"], 10, "SELECT url, warc_filename, warc_record_offset, warc_record_length, content_charset FROM ccindex WHERE crawl = 'CC-MAIN-2021-39' AND subset = 'wet' AND url_host_registered_domain IN ('cbc.ca') LIMIT 10"),
+     (["cbc.ca", "apnews.com"], 100, "SELECT url, warc_filename, warc_record_offset, warc_record_length, content_charset FROM ccindex WHERE crawl = 'CC-MAIN-2021-39' AND subset = 'wet' AND url_host_registered_domain IN ('cbc.ca', 'apnews.com') LIMIT 100")])
+def test_cc_index_query_builder(sites, limit, true_query):
+    query = utils.construct_query(sites, limit)
     assert query == true_query
