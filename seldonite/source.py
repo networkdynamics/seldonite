@@ -41,8 +41,8 @@ class Source:
         self.end_date = end_date
         self.strict = strict
 
-    def fetch(self):
-        articles = self._fetch()
+    def fetch(self, max_articles=100):
+        articles = self._fetch(max_articles)
 
         for article in articles:
             if self.news_only:
@@ -88,14 +88,14 @@ class CommonCrawl(WebWideSource):
         self.can_keyword_filter = True
         self.crawl_version = "CC-MAIN-2017-13"
 
-    def _fetch(self):
+    def _fetch(self, max_articles):
 
         # get wet file listings from common crawl
         listing = utils.get_crawl_listing(self.crawl_version)
 
         # create the spark job
-        job = CCIndexFetchNewsJob(spark_master_url=self.spark_master_url, sites=self.sites)
-        job.run()
+        job = CCIndexFetchNewsJob(spark_master_url=self.spark_master_url, sites=self.sites, limit=max_articles)
+        return job.run()
 
 class SearchEngineSource(WebWideSource):
 
@@ -118,7 +118,7 @@ class Google(SearchEngineSource):
         self.dev_key = dev_key
         self.engine_id = engine_id
 
-    def _fetch(self, max_articles=100):
+    def _fetch(self, max_articles):
 
         service = gbuild("customsearch", "v1",
             developerKey=self.dev_key)
@@ -265,10 +265,7 @@ class Eureka(SearchEngineSource):
                 article_title_element = driver.find_element_by_css_selector('.titreArticleVisu')
                 article_title = article_title_element.text
 
-                article = Article(driver.current_url)
-                article.download(input_html=driver.page_source)
-                article.parse()
-                article.set_title(article_title)
+                article = utils.html_to_article(driver.current_url, driver.page_source, title=article_title)
 
                 yield article
 
