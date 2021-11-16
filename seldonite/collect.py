@@ -28,17 +28,20 @@ class Collector:
         if self.source.can_keyword_filter:
             self.source.set_keywords(keywords)
 
-    def fetch(self, max_articles=100):
+    def fetch(self, max_articles=100, no_generator=False):
 
-        articles = self.source.fetch(max_articles)
+        articles = self.source.fetch(max_articles, no_generator)
 
         if self.keywords and not self.source.can_keyword_filter:
-            for article in articles:
-                if filter.contains_keywords(article, self.keywords):
-                    yield article
+            if no_generator:
+                return [article for article in articles if filter.contains_keywords(article, self.keywords)]
+            else:
+                for article in articles:
+                    if filter.contains_keywords(article, self.keywords):
+                        yield article
 
-        for article in articles:
-            yield article
+        else:
+            return articles
 
 
     def find_topics(self, batch_size=1000):

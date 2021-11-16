@@ -41,14 +41,18 @@ class Source:
         self.end_date = end_date
         self.strict = strict
 
-    def fetch(self, max_articles):
+    def fetch(self, max_articles, no_generator):
         articles = self._fetch(max_articles)
 
-        for article in articles:
-            if self.news_only:
-                yield article
-            # apply newsplease heuristics to get only articles
-            else:
+        if self.news_only:
+            return articles
+
+        if no_generator:
+            return [article for article in articles if heuristics.og_type(article)]
+
+        else:
+            for article in articles:
+                # apply newsplease heuristics to get only articles
                 if heuristics.og_type(article):
                     yield article
 
@@ -78,7 +82,7 @@ class CommonCrawl(WebWideSource):
     Source that uses Spark to search CommonCrawl
     '''
 
-    def __init__(self, master_url, sites=[]):
+    def __init__(self, master_url=None, sites=[]):
         '''
         params:
         '''

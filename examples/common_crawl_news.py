@@ -1,5 +1,6 @@
 import argparse
 import json
+import os
 
 from seldonite import source
 from seldonite import collect
@@ -8,7 +9,7 @@ from seldonite import collect
 def main(args):
 
     sites = [args.site]
-    google_source = source.CommonCrawl(args.master_url, sites=sites)
+    google_source = source.CommonCrawl(master_url=args.master_url, sites=sites)
 
     collector = collect.Collector(google_source)
     collector.by_keywords([args.keyword])
@@ -16,7 +17,13 @@ def main(args):
 
     json_articles = json.dumps([article.to_dict() for article in articles], indent=2)
     if args.out:
-        with open(args.out, 'w') as f:
+        out_path = os.path.abspath(args.out)
+        out_dir = os.path.dirname(out_path)
+
+        if not os.path.exists(out_dir):
+            os.mkdir(out_dir)
+
+        with open(out_path, 'w') as f:
             f.write(json_articles)
     else:
         print(json_articles)

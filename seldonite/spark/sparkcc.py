@@ -83,32 +83,40 @@ class CCSparkJob:
 
         # add packages to allow pulling from AWS S3
         conf.set('spark.jars.packages', 'org.apache.hadoop:hadoop-aws:3.2.0,com.amazonaws:aws-java-sdk:1.11.375')
-        
-        # set spark container image
-        conf.set('spark.kubernetes.container.image', 'datamechanics/spark:3.2.0-latest')
-
-        # allow spark worker scaling
-        conf.set('spark.dynamicAllocation.enabled', 'true')
-        conf.set('spark.dynamicAllocation.shuffleTracking.enabled', 'true')
-
-        # specify pod size
-        conf.set('spark.executor.cores', '32')
-        conf.set('spark.kubernetes.executor.request.cores', '28800m')
-        conf.set('spark.executor.memory', '320g')
 
         # anon creds for aws
         conf.set('spark.hadoop.fs.s3a.aws.credentials.provider', 'org.apache.hadoop.fs.s3a.AnonymousAWSCredentialsProvider')
         conf.set('spark.hadoop.fs.s3a.impl', 'org.apache.hadoop.fs.s3a.S3AFileSystem')
 
-        # allow python deps to be used
-        os.environ['PYSPARK_PYTHON'] = './environment/bin/python'
-        conf.set('spark.archives', 'pyspark_conda_env.tar.gz#environment')
+        if self.spark_master_url:
 
-        sc = SparkContext(
-            master=self.spark_master_url,
-            appName=self.name,
-            conf=conf
-        )
+            # set spark container image
+            conf.set('spark.kubernetes.container.image', 'datamechanics/spark:3.2.0-latest')
+
+            # allow spark worker scaling
+            conf.set('spark.dynamicAllocation.enabled', 'true')
+            conf.set('spark.dynamicAllocation.shuffleTracking.enabled', 'true')
+
+            # specify pod size
+            conf.set('spark.executor.cores', '32')
+            conf.set('spark.kubernetes.executor.request.cores', '28800m')
+            conf.set('spark.executor.memory', '320g')
+
+            # allow python deps to be used
+            os.environ['PYSPARK_PYTHON'] = './environment/bin/python'
+            conf.set('spark.archives', 'pyspark_conda_env.tar.gz#environment')
+
+            sc = SparkContext(
+                master=self.spark_master_url,
+                appName=self.name,
+                conf=conf
+            )
+        else:
+            os.environ['PYSPARK_PYTHON'] = 'python'
+            sc = SparkContext(
+                appName=self.name,
+                conf=conf
+            )
         
         sqlc = SQLContext(sparkContext=sc)
 
