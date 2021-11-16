@@ -24,13 +24,23 @@ Please see the wiki for more detail on sources and methods
 
 To install seldonite as editable, and dependencies via pip:
 ```
+pip install -e .
 pip install -r requirements.txt
 ```
+Or if you have `make`:
+```
+make setup
+```
+
+### Spacy
 
 To use NLP methods that require the use of spacy:
 ```
 python -m spacy download en_core_web_sm
 ```
+
+### Selenium
+
 To use sources that require Selenium, download the chromedriver and place is on your path. For me this goes like this:
 ```
 curl -LO https://chromedriver.storage.googleapis.com/94.0.4606.61/chromedriver_linux64.zip
@@ -39,9 +49,18 @@ mv ./chromedriver /path/to/bin
 rm chromedriver_linux64.zip
 ```
 
-Or if you have `make`:
+### Spark
+
+To make Python dependencies available to Spark executors, use venv:
 ```
-make setup
+conda env create -f ./environment.yml
+conda activate pyspark_conda_env
+conda pack -f -o pyspark_conda_env.tar.gz
+```
+then in the Python code:
+```
+os.environ['PYSPARK_PYTHON'] = './environment/bin/python'
+conf.set('spark.archives', 'pyspark_conda_env.tar.gz#environment)
 ```
 
 ## Tests
@@ -51,7 +70,7 @@ We use `pytest`.
 To run tests, run these commands from the top level directory:
 
 ```
-pip install --edit .
+pip install -e .
 pytest
 ```
 

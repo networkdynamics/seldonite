@@ -41,7 +41,7 @@ class Source:
         self.end_date = end_date
         self.strict = strict
 
-    def fetch(self, max_articles=100):
+    def fetch(self, max_articles):
         articles = self._fetch(max_articles)
 
         for article in articles:
@@ -95,7 +95,8 @@ class CommonCrawl(WebWideSource):
 
         # create the spark job
         job = CCIndexFetchNewsJob(spark_master_url=self.spark_master_url, sites=self.sites, limit=max_articles)
-        return job.run()
+        result = job.run()
+        return result
 
 class SearchEngineSource(WebWideSource):
 

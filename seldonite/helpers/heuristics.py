@@ -4,10 +4,10 @@ See here for more information https://github.com/fhamborg/news-please/wiki/crawl
 """
 import re
 
-from newsplease.helper_classes.url_extractor import UrlExtractor
-
 # to improve performance, regex statements are compiled only once per module
 re_url_root = re.compile(r'https?://[a-z]+.')
+re_www = re.compile(r'^(www.)')
+re_domain = re.compile(r'[^/.]+\.[^/.]+$', )
 
 
 def og_type(article):
@@ -39,7 +39,7 @@ def linked_headlines(response, site_dict, check_self=False):
     """
     h_all = 0
     h_linked = 0
-    domain = UrlExtractor.get_allowed_domain(site_dict["url"], False)
+    domain = get_allowed_domain(site_dict["url"], False)
 
     # This regex checks, if a link containing site_domain as domain
     # is contained in a string.
@@ -80,4 +80,17 @@ def is_not_from_subdomain(response, site_dict):
     """
 
     root_url = re.sub(re_url_root, '', site_dict["url"])
-    return UrlExtractor.get_allowed_domain(response.url) == root_url
+    return get_allowed_domain(response.url) == root_url
+
+
+def get_allowed_domain(url, allow_subdomains=True):
+    """
+    Determines the url's domain.
+    :param str url: the url to extract the allowed domain from
+    :param bool allow_subdomains: determines wether to include subdomains
+    :return str: subdomains.domain.topleveldomain or domain.topleveldomain
+    """
+    if allow_subdomains:
+        return re.sub(re_www, '', re.search(r'[^/]+\.[^/]+', url).group(0))
+    else:
+        return re.search(re_domain, get_allowed_domain(url)).group(0)

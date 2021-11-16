@@ -2,6 +2,7 @@ from collections import Counter
 
 from bs4 import BeautifulSoup
 from bs4.dammit import EncodingDetector
+from newspaper.article import Article
 
 from seldonite.spark.sparkcc import CCIndexWarcSparkJob
 from seldonite.spark.fetch_news import FetchNewsJob
@@ -66,6 +67,10 @@ class CCIndexFetchNewsJob(CCIndexWarcSparkJob, FetchNewsJob):
             self.records_non_html.add(1)
             return
         page = record.content_stream().read()
-        text = self.html_to_text(page, record)
+        #text = self.html_to_text(page, record)
 
-        return utils.html_to_article("", text)
+        article = Article("")
+        article.download(input_html=page)
+        article.parse()
+
+        return article

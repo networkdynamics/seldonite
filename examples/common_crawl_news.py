@@ -12,7 +12,7 @@ def main(args):
 
     collector = collect.Collector(google_source)
     collector.by_keywords([args.keyword])
-    articles = collector.fetch()
+    articles = collector.fetch(max_articles=1)
 
     json_articles = json.dumps([article.to_dict() for article in articles], indent=2)
     if args.out:

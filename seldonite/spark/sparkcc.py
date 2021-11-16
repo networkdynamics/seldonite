@@ -1,4 +1,3 @@
-import argparse
 import json
 import logging
 import os
@@ -95,10 +94,15 @@ class CCSparkJob:
         # specify pod size
         conf.set('spark.executor.cores', '32')
         conf.set('spark.kubernetes.executor.request.cores', '28800m')
+        conf.set('spark.executor.memory', '320g')
 
         # anon creds for aws
         conf.set('spark.hadoop.fs.s3a.aws.credentials.provider', 'org.apache.hadoop.fs.s3a.AnonymousAWSCredentialsProvider')
         conf.set('spark.hadoop.fs.s3a.impl', 'org.apache.hadoop.fs.s3a.S3AFileSystem')
+
+        # allow python deps to be used
+        os.environ['PYSPARK_PYTHON'] = './environment/bin/python'
+        conf.set('spark.archives', 'pyspark_conda_env.tar.gz#environment')
 
         sc = SparkContext(
             master=self.spark_master_url,
@@ -362,13 +366,18 @@ class CCIndexWarcSparkJob(CCIndexSparkJob):
                 continue
             record_stream = BytesIO(response["Body"].read())
             try:
+                record_cnt = 0
                 for record in ArchiveIterator(record_stream,
                                               no_record_parse=no_parse):
                     # pass `content_charset` forward to subclass processing WARC records
                     record.rec_headers['WARC-Identified-Content-Charset'] = content_charset
-                    yield self.process_record(record)
+                    #yield self.process_record(record)
+                    record_cnt += 1
 
                     self.records_processed.add(1)
+
+                return record_cnt
+
             except ArchiveLoadFailed as exception:
                 self.warc_input_failed.add(1)
                 self.get_logger().error(
@@ -383,8 +392,8 @@ class CCIndexWarcSparkJob(CCIndexSparkJob):
             columns.append('content_charset')
         warc_recs = sqldf.select(*columns).rdd
 
-        output = warc_recs.mapPartitions(self.fetch_process_warc_records) \
-            .collect()
+        rdd = warc_recs.mapPartitions(self.fetch_process_warc_records)
+        output = rdd.count()
 
         return output
         # sqlc.createDataFrame(output, schema=self.output_schema) \
