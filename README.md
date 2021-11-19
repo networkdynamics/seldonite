@@ -54,8 +54,7 @@ rm chromedriver_linux64.zip
 To make Python dependencies available to Spark executors, use venv:
 ```
 conda env create -f ./environment.yml
-conda activate pyspark_conda_env
-conda pack -f -o pyspark_conda_env.tar.gz
+conda pack -n pyspark_conda_env -f -o pyspark_conda_env.tar.gz
 ```
 then in the Python code:
 ```

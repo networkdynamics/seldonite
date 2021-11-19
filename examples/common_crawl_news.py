@@ -8,12 +8,16 @@ from seldonite import collect
 
 def main(args):
 
-    sites = [args.site]
+    if args.site is None:
+        sites = []
+    else:
+        sites = [args.site]
+        
     google_source = source.CommonCrawl(master_url=args.master_url, sites=sites)
 
     collector = collect.Collector(google_source)
     collector.by_keywords([args.keyword])
-    articles = collector.fetch(max_articles=1)
+    articles = collector.fetch(max_articles=None)
 
     json_articles = json.dumps([article.to_dict() for article in articles], indent=2)
     if args.out:

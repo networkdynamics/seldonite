@@ -21,7 +21,7 @@ class CCIndexFetchNewsJob(CCIndexWarcSparkJob, FetchNewsJob):
     def __init__(self, sites=[], limit=None, **kwargs):
         super().__init__(**kwargs)
 
-        self.query = utils.construct_query(sites, limit)
+        self.query = utils.construct_query(sites, limit, crawl='CC-MAIN-2021-39')
 
     def init_accumulators(self, sc):
         super().init_accumulators(sc)
@@ -73,4 +73,4 @@ class CCIndexFetchNewsJob(CCIndexWarcSparkJob, FetchNewsJob):
         article.download(input_html=page)
         article.parse()
 
-        return article
+        return { "title": article.title, "text": article.text, "url": article.source_url, "publish_date": article.publish_date }

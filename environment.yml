@@ -3,15 +3,16 @@ channels:
   - conda-forge
 dependencies:
   - python=3.8
-  - newspaper3k>=0.2.8
-  - boto3>=1.18.62
-  - pyspark>=3.1.2
-  - selenium>=3.141.0
-  - spacy>=3.1.3
-  - gensim>=4.1.2
-  - google-api-python-client>=2.28.0
+  - newspaper3k
+  - boto3
+  - pyspark
+  - selenium
+  - spacy
+  - gensim
+  - google-api-python-client
   - conda-build
   - conda-pack
+  - pandas
   - pip
   - pip:
     - .

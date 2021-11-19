@@ -33,7 +33,7 @@ class CCSparkJob:
     warc_input_failed = None
     
 
-    def __init__(self, input_file_listing=None, num_input_partitions=400, local_temp_dir=None, 
+    def __init__(self, input_file_listing=None, num_input_partitions=32, local_temp_dir=None, 
                  log_level='INFO', spark_profiler=None, spark_master_url=None):
 
         # Path to file listing input paths
@@ -94,13 +94,21 @@ class CCSparkJob:
             conf.set('spark.kubernetes.container.image', 'datamechanics/spark:3.2.0-latest')
 
             # allow spark worker scaling
-            conf.set('spark.dynamicAllocation.enabled', 'true')
-            conf.set('spark.dynamicAllocation.shuffleTracking.enabled', 'true')
+            dynamic_scaling = False
+            if dynamic_scaling:
+                conf.set('spark.dynamicAllocation.enabled', 'true')
+                conf.set('spark.dynamicAllocation.shuffleTracking.enabled', 'true')
+                conf.set("spark.dynamicAllocation.maxExecutors","5")
+            else:
+                conf.set('spark.executor.instances', '1')
 
             # specify pod size
             conf.set('spark.executor.cores', '32')
             conf.set('spark.kubernetes.executor.request.cores', '28800m')
-            conf.set('spark.executor.memory', '320g')
+            conf.set('spark.executor.memory', '450g')
+
+            # add labels to pods
+            conf.set('spark.kubernetes.executor.label.app', 'seldonite')
 
             # allow python deps to be used
             os.environ['PYSPARK_PYTHON'] = './environment/bin/python'
@@ -332,12 +340,13 @@ class CCIndexWarcSparkJob(CCIndexSparkJob):
 
     name = "CCIndexWarcSparkJob"
 
-    def __init__(self, query="SELECT url, warc_filename, warc_record_offset, warc_record_length, content_charset FROM ccindex WHERE crawl = 'CC-MAIN-2020-24' AND subset = 'warc' LIMIT 10", csv=None, **kwargs):
+    def __init__(self, query=None, csv=None, **kwargs):
         super().__init__(**kwargs)
         # SQL query to select rows. 
         # Note: the result is required to contain the columns `url', `warc_filename', `warc_record_offset' and `warc_record_length', make sure they're SELECTed. 
         # The column `content_charset' is optional and is utilized to read WARC record payloads with the right encoding.
-        self.query = query
+        if query is not None:
+            self.query = query
         # CSV file to load WARC records by filename, offset and length. 
         # The CSV file must have column headers 
         # and the input columns `url', `warc_filename', `warc_record_offset' and `warc_record_length' are mandatory, see also option query.
@@ -374,17 +383,13 @@ class CCIndexWarcSparkJob(CCIndexSparkJob):
                 continue
             record_stream = BytesIO(response["Body"].read())
             try:
-                record_cnt = 0
                 for record in ArchiveIterator(record_stream,
                                               no_record_parse=no_parse):
                     # pass `content_charset` forward to subclass processing WARC records
                     record.rec_headers['WARC-Identified-Content-Charset'] = content_charset
-                    #yield self.process_record(record)
-                    record_cnt += 1
+                    yield self.process_record(record)
 
                     self.records_processed.add(1)
-
-                return record_cnt
 
             except ArchiveLoadFailed as exception:
                 self.warc_input_failed.add(1)
@@ -400,8 +405,15 @@ class CCIndexWarcSparkJob(CCIndexSparkJob):
             columns.append('content_charset')
         warc_recs = sqldf.select(*columns).rdd
 
+        num_warcs = warc_recs.count()
+        if num_warcs == 0:
+            raise ValueError()
+
+        # warc_df = warc_recs.toDF().toPandas()
+        # warc_df.to_csv('./apnews_2021_39_index.csv')
+
         rdd = warc_recs.mapPartitions(self.fetch_process_warc_records)
-        output = rdd.count()
+        output = rdd.collect()
 
         return output
         # sqlc.createDataFrame(output, schema=self.output_schema) \

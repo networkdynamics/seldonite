@@ -41,20 +41,17 @@ class Source:
         self.end_date = end_date
         self.strict = strict
 
-    def fetch(self, max_articles, no_generator):
+    def fetch(self, max_articles):
         articles = self._fetch(max_articles)
 
         if self.news_only:
-            return articles
-
-        if no_generator:
-            return [article for article in articles if heuristics.og_type(article)]
-
-        else:
             for article in articles:
-                # apply newsplease heuristics to get only articles
-                if heuristics.og_type(article):
-                    yield article
+                yield article
+
+        for article in articles:
+            # apply newsplease heuristics to get only articles
+            if heuristics.og_type(article):
+                yield article
 
     def _fetch(self):
         raise NotImplementedError()
