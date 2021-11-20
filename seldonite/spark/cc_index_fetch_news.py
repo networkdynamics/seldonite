@@ -6,7 +6,7 @@ from newspaper.article import Article
 
 from seldonite.spark.sparkcc import CCIndexWarcSparkJob
 from seldonite.spark.fetch_news import FetchNewsJob
-from seldonite.helpers import utils
+from seldonite.helpers import utils, heuristics
 
 
 class CCIndexFetchNewsJob(CCIndexWarcSparkJob, FetchNewsJob):
@@ -59,7 +59,7 @@ class CCIndexFetchNewsJob(CCIndexWarcSparkJob, FetchNewsJob):
             self.records_parsing_failed.add(1)
             return ''
 
-    def process_record(self, record):
+    def process_record(self, url, record):
         if record.rec_type != 'response':
             # skip over WARC request or metadata records
             return
@@ -67,10 +67,16 @@ class CCIndexFetchNewsJob(CCIndexWarcSparkJob, FetchNewsJob):
             self.records_non_html.add(1)
             return
         page = record.content_stream().read()
-        #text = self.html_to_text(page, record)
 
-        article = Article("")
-        article.download(input_html=page)
-        article.parse()
+        try:
+            article = utils.html_to_article(url, page)
+        except Exception as e:
+            self.get_logger().error("Error converting HTML to article for {}: {}",
+                                    record.rec_headers['WARC-Target-URI'], e)
+            self.records_parsing_failed.add(1)
+            return False, None
 
-        return { "title": article.title, "text": article.text, "url": article.source_url, "publish_date": article.publish_date }
+        if not heuristics.og_type(article):
+            return False, None
+
+        return True, { "title": article.title, "text": article.text, "url": url, "publish_date": article.publish_date }

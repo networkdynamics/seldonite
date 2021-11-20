@@ -75,7 +75,7 @@ class CCSparkJob:
         return spark_context._jvm.org.apache.log4j.LogManager \
             .getLogger(self.name)
 
-    def run(self):
+    def run(self, url_only):
         conf = SparkConf()
 
         if self.spark_profiler:
@@ -130,7 +130,7 @@ class CCSparkJob:
 
         self.init_accumulators(sc)
 
-        result = self.run_job(sc, sqlc)
+        result = self.run_job(sc, sqlc, url_only)
 
         if self.spark_profiler:
             sc.show_profiles()
@@ -387,7 +387,9 @@ class CCIndexWarcSparkJob(CCIndexSparkJob):
                                               no_record_parse=no_parse):
                     # pass `content_charset` forward to subclass processing WARC records
                     record.rec_headers['WARC-Identified-Content-Charset'] = content_charset
-                    yield self.process_record(record)
+                    success, article = self.process_record(url, record)
+                    if success:
+                        yield article
 
                     self.records_processed.add(1)
 
@@ -397,23 +399,27 @@ class CCIndexWarcSparkJob(CCIndexSparkJob):
                     'Invalid WARC record: {} ({}, offset: {}, length: {}) - {}'
                     .format(url, warc_path, offset, length, exception))
 
-    def run_job(self, sc, sqlc):
+    def run_job(self, sc, sqlc, url_only):
         sqldf = self.load_dataframe(sc, self.num_input_partitions)
 
-        columns = ['url', 'warc_filename', 'warc_record_offset', 'warc_record_length']
-        if 'content_charset' in sqldf.columns:
-            columns.append('content_charset')
-        warc_recs = sqldf.select(*columns).rdd
+        if url_only:
+            columns = ['url']
+            warc_recs = sqldf.select(*columns).rdd
+            return warc_recs.collect()
+        else:
+            columns = ['url', 'warc_filename', 'warc_record_offset', 'warc_record_length']
+            if 'content_charset' in sqldf.columns:
+                columns.append('content_charset')
+            warc_recs = sqldf.select(*columns).rdd
 
         num_warcs = warc_recs.count()
         if num_warcs == 0:
             raise ValueError()
 
-        # warc_df = warc_recs.toDF().toPandas()
-        # warc_df.to_csv('./apnews_2021_39_index.csv')
-
         rdd = warc_recs.mapPartitions(self.fetch_process_warc_records)
         output = rdd.collect()
+
+        self.log_aggregators(sc)
 
         return output
         # sqlc.createDataFrame(output, schema=self.output_schema) \
@@ -423,5 +429,3 @@ class CCIndexWarcSparkJob(CCIndexSparkJob):
         #     .option("compression", self.output_compression) \
         #     .options(**self.get_output_options()) \
         #     .saveAsTable(self.output)
-
-        self.log_aggregators(sc)

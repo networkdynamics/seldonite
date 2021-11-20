@@ -41,8 +41,8 @@ class Source:
         self.end_date = end_date
         self.strict = strict
 
-    def fetch(self, max_articles):
-        articles = self._fetch(max_articles)
+    def fetch(self, max_articles, url_only):
+        articles = self._fetch(max_articles, urlonly=url_only)
 
         if self.news_only:
             for article in articles:
@@ -88,16 +88,23 @@ class CommonCrawl(WebWideSource):
         self.spark_master_url = master_url
         self.can_keyword_filter = True
         self.crawl_version = "CC-MAIN-2017-13"
+        # we apply newsplease heuristics in spark job
+        self.news_only = True
 
-    def _fetch(self, max_articles):
+    def _fetch(self, max_articles, url_only=False):
 
         # get wet file listings from common crawl
-        listing = utils.get_crawl_listing(self.crawl_version)
+        #listing = utils.get_crawl_listing(self.crawl_version)
 
         # create the spark job
         job = CCIndexFetchNewsJob(spark_master_url=self.spark_master_url, sites=self.sites, limit=max_articles)
-        result = job.run()
-        return result
+        result = job.run(url_only)
+
+        if url_only:
+            for url in result:
+                yield Article(url)
+            for article_dict in result:
+                yield utils.dict_to_article(article_dict)
 
 class SearchEngineSource(WebWideSource):
 
@@ -120,7 +127,7 @@ class Google(SearchEngineSource):
         self.dev_key = dev_key
         self.engine_id = engine_id
 
-    def _fetch(self, max_articles):
+    def _fetch(self, max_articles, url_only=False):
 
         service = gbuild("customsearch", "v1",
             developerKey=self.dev_key)
@@ -152,7 +159,10 @@ class Google(SearchEngineSource):
 
             for item in items:
                 link = item['link']
-                yield utils.link_to_article(link)
+                if url_only:
+                    yield Article(link)
+                else:
+                    yield utils.link_to_article(link, )
 
 class Eureka(SearchEngineSource):
     def __init__(self, chromedriver, eureka_url, username=None, password=None, show_browser=False, **kwargs):
@@ -169,7 +179,10 @@ class Eureka(SearchEngineSource):
 
         self.show_browser = show_browser
 
-    def _fetch(self):
+    def _fetch(self, only_url=False):
+
+        if only_url:
+            raise ValueError('Eureka is unable to fetch article URLs.')
 
         chrome_options = None
         if not self.show_browser:

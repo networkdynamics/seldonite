@@ -5,7 +5,6 @@ from seldonite.model import Article
 import requests
 
 def link_to_article(link):
-
     article = Article(link)
     article.download()
     article.parse()
@@ -20,6 +19,13 @@ def html_to_article(url, html, title=None):
     if title is not None:
         article.set_title(title)
 
+    return article
+
+def dict_to_article(dict):
+    article = Article(dict['url'])
+    article.set_title(dict['title'])
+    article.set_text(dict['text'])
+    article.publish_date = dict['publish_date']
     return article
 
 def get_crawl_listing(crawl, data_type="wet"):

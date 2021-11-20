@@ -28,9 +28,9 @@ class Collector:
         if self.source.can_keyword_filter:
             self.source.set_keywords(keywords)
 
-    def fetch(self, max_articles=100):
+    def fetch(self, max_articles=100, url_only=False):
 
-        articles = self.source.fetch(max_articles)
+        articles = self.source.fetch(max_articles, url_only)
 
         if self.keywords and not self.source.can_keyword_filter:
             for article in articles:
