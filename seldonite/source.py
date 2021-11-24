@@ -88,17 +88,19 @@ class CommonCrawl(WebWideSource):
         self.spark_master_url = master_url
         self.can_keyword_filter = True
         self.crawl_version = "CC-MAIN-2017-13"
+
         # we apply newsplease heuristics in spark job
         self.news_only = True
+
+        # create the spark job
+        self.job = CCIndexFetchNewsJob(spark_master_url=self.spark_master_url, sites=self.sites)
 
     def _fetch(self, max_articles, url_only=False):
 
         # get wet file listings from common crawl
         #listing = utils.get_crawl_listing(self.crawl_version)
 
-        # create the spark job
-        job = CCIndexFetchNewsJob(spark_master_url=self.spark_master_url, sites=self.sites, limit=max_articles)
-        result = job.run(url_only)
+        result = self.job.run(url_only=url_only, max_articles=max_articles, keywords=self.keywords)
 
         if url_only:
             for url in result:

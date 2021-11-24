@@ -2,7 +2,6 @@
 *.vscode*
 .devcontainer.json
 data/*
-scripts/*
 *.tar.gz
 
 # Byte-compiled / optimized / DLL files

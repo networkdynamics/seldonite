@@ -6,7 +6,7 @@ from newspaper.article import Article
 
 from seldonite.spark.sparkcc import CCIndexWarcSparkJob
 from seldonite.spark.fetch_news import FetchNewsJob
-from seldonite.helpers import utils, heuristics
+from seldonite.helpers import utils, heuristics, filter
 
 
 class CCIndexFetchNewsJob(CCIndexWarcSparkJob, FetchNewsJob):
@@ -77,6 +77,9 @@ class CCIndexFetchNewsJob(CCIndexWarcSparkJob, FetchNewsJob):
             return False, None
 
         if not heuristics.og_type(article):
+            return False, None
+
+        if self.keywords and not filter.contains_keywords(article, self.keywords):
             return False, None
 
         return True, { "title": article.title, "text": article.text, "url": url, "publish_date": article.publish_date }

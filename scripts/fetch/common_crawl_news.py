@@ -13,9 +13,9 @@ def main(args):
     else:
         sites = [args.site]
         
-    google_source = source.CommonCrawl(master_url=args.master_url, sites=sites)
+    cc_source = source.CommonCrawl(master_url=args.master_url, sites=sites)
 
-    collector = collect.Collector(google_source)
+    collector = collect.Collector(cc_source)
     collector.by_keywords([args.keyword])
     articles = collector.fetch(max_articles=None)
 
