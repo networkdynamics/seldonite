@@ -79,7 +79,7 @@ class CommonCrawl(WebWideSource):
     Source that uses Spark to search CommonCrawl
     '''
 
-    def __init__(self, master_url=None, sites=[]):
+    def __init__(self, master_url=None, news_crawl=False, sites=[]):
         '''
         params:
         '''
@@ -87,18 +87,30 @@ class CommonCrawl(WebWideSource):
 
         self.spark_master_url = master_url
         self.can_keyword_filter = True
-        self.crawl_version = "CC-MAIN-2017-13"
+        self.crawls = [ utils.most_recent_cc_crawl() ]
 
         # we apply newsplease heuristics in spark job
         self.news_only = True
 
         # create the spark job
-        self.job = CCIndexFetchNewsJob(spark_master_url=self.spark_master_url, sites=self.sites)
+        self.news_crawl = news_crawl
+        if news_crawl:
+            raise NotImplementedError('Searching the NEWSCRAWL database is not yet implemented.')
+        else:
+            self.job = CCIndexFetchNewsJob(spark_master_url=self.spark_master_url, sites=self.sites, crawls=self.crawls)
+
+    def set_date_range(self, start_date, end_date, strict=True):
+        super().set_date_range(start_date, end_date, strict=strict)
+
+        # only need to look at crawls that are after the start_date of the search
+        crawls = utils.get_cc_crawls_since(start_date)
+        self.job.set_crawls(crawls)
 
     def _fetch(self, max_articles, url_only=False):
 
-        # get wet file listings from common crawl
-        #listing = utils.get_crawl_listing(self.crawl_version)
+        if self.news_crawl:
+            # get wet file listings from common crawl
+            listing = utils.get_crawl_listing(self.crawl_version)
 
         result = self.job.run(url_only=url_only, max_articles=max_articles, keywords=self.keywords)
 

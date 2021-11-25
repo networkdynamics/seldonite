@@ -1,4 +1,6 @@
+import datetime
 import gzip
+import re
 
 from seldonite.model import Article
 
@@ -34,6 +36,38 @@ def get_crawl_listing(crawl, data_type="wet"):
     txt_listing = gzip.decompress(res.content).decode("utf-8")
     listing = txt_listing.splitlines()
     return ['s3://commoncrawl/' + entry for entry in listing]
+
+def most_recent_cc_crawl():
+    url = 'https://index.commoncrawl.org/collinfo.json'
+    res = requests.get(url)
+    crawls = res.json()
+    return crawls[0]['id']
+
+def get_cc_crawls_since(date):
+    url = 'https://index.commoncrawl.org/collinfo.json'
+    res = requests.get(url)
+    crawls = res.json()
+
+    year_regex = r'[0-9]{4}'
+    month_regex = r'January|February|March|April|May|June|July|August|September|October|November|December'
+    crawl_ids = []
+    for crawl in crawls:
+        crawl_years = [int(year) for year in re.findall(year_regex, crawl['name'])]
+        crawl_year = min(crawl_years)
+        if crawl_year > date.year:
+            crawl_ids.append(crawl['id'])
+        elif crawl_year == date.year:
+            crawl_month_match = re.search(month_regex, crawl['name'])
+            if not crawl_month_match:
+                continue
+
+            crawl_month = crawl_month_match.group()
+            crawl_month_date = datetime.datetime.strptime(crawl_month, '%B')
+            crawl_month_num = crawl_month_date.month
+            if crawl_month_num > date.month:
+                crawl_ids.append(crawl['id'])
+
+    return crawl_ids
 
 def construct_query(sites, limit, crawl=None, type=None):
     #TODO automatically get most recent crawl

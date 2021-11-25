@@ -79,6 +79,9 @@ class CCIndexFetchNewsJob(CCIndexWarcSparkJob, FetchNewsJob):
         if not heuristics.og_type(article):
             return False, None
 
+        if article.publish_date < self.start_date or article.publish_date > self.end_date:
+            return False, None
+
         if self.keywords and not filter.contains_keywords(article, self.keywords):
             return False, None
 
