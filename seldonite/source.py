@@ -1,4 +1,4 @@
-import time
+import datetime
 
 from seldonite.helpers import heuristics, utils
 from seldonite.model import Article
@@ -41,10 +41,14 @@ class Source:
         self.end_date = end_date
         self.strict = strict
 
-    def fetch(self, max_articles, url_only):
-        articles = self._fetch(max_articles, urlonly=url_only)
+    def fetch(self, sites, max_articles, url_only, disable_news_heuristics=False):
+        '''
+        params:
+        sites: If None or empty list, any site is OK. Example: ['cbc.ca']
+        '''
+        articles = self._fetch(sites, max_articles, url_only=url_only)
 
-        if self.news_only:
+        if disable_news_heuristics or self.news_only:
             for article in articles:
                 yield article
 
@@ -61,14 +65,9 @@ class WebWideSource(Source):
     Parent class for web wide sources
     '''
 
-    def __init__(self, sites=[]):
-        '''
-        params:
-        sites: If None or empty list, any site is OK. Example: ['cbc.ca']
-        '''
+    def __init__(self):
         super().__init__()
 
-        self.sites = sites
         self.keywords = []
 
     def set_keywords(self, keywords=[]):
@@ -79,15 +78,20 @@ class CommonCrawl(WebWideSource):
     Source that uses Spark to search CommonCrawl
     '''
 
-    def __init__(self, master_url=None, news_crawl=False, sites=[]):
+    def __init__(self, master_url=None, crawl='latest', news_crawl=False):
         '''
         params:
         '''
-        super().__init__(sites)
+        super().__init__()
 
         self.spark_master_url = master_url
         self.can_keyword_filter = True
-        self.crawls = [ utils.most_recent_cc_crawl() ]
+        if crawl == 'latest':
+            self.crawls = [ utils.most_recent_cc_crawl() ]
+        elif crawl == 'all':
+            self.crawls = utils.get_all_cc_crawls()
+        else:
+            self.crawls = [ crawl ]
 
         # we apply newsplease heuristics in spark job
         self.news_only = True
@@ -97,34 +101,34 @@ class CommonCrawl(WebWideSource):
         if news_crawl:
             raise NotImplementedError('Searching the NEWSCRAWL database is not yet implemented.')
         else:
-            self.job = CCIndexFetchNewsJob(spark_master_url=self.spark_master_url, sites=self.sites, crawls=self.crawls)
+            self.job = CCIndexFetchNewsJob(spark_master_url=self.spark_master_url)
 
     def set_date_range(self, start_date, end_date, strict=True):
         super().set_date_range(start_date, end_date, strict=strict)
 
         # only need to look at crawls that are after the start_date of the search
-        crawls = utils.get_cc_crawls_since(start_date)
-        self.job.set_crawls(crawls)
+        self.crawls = utils.get_cc_crawls_since(start_date)
 
-    def _fetch(self, max_articles, url_only=False):
+    def _fetch(self, sites, max_articles, url_only=False):
 
         if self.news_crawl:
             # get wet file listings from common crawl
             listing = utils.get_crawl_listing(self.crawl_version)
 
-        result = self.job.run(url_only=url_only, max_articles=max_articles, keywords=self.keywords)
+        result = self.job.run(url_only=url_only, limit=max_articles, keywords=self.keywords, sites=sites, crawls=self.crawls)
 
         if url_only:
             for url in result:
-                yield Article(url)
+                yield Article(url, init=False)
+        else:
             for article_dict in result:
                 yield utils.dict_to_article(article_dict)
 
 class SearchEngineSource(WebWideSource):
 
     # TODO this is incorrect syntax for param expansion, fix
-    def __init__(self, sites = []):
-        super().__init__(sites)
+    def __init__(self):
+        super().__init__()
 
         self.can_keyword_filter = True
 
@@ -135,13 +139,13 @@ class Google(SearchEngineSource):
     Source that uses Google's Custom Search JSON API
     '''
 
-    def __init__(self, dev_key, engine_id, sites=[]):
-        super().__init__(sites)
+    def __init__(self, dev_key, engine_id):
+        super().__init__()
 
         self.dev_key = dev_key
         self.engine_id = engine_id
 
-    def _fetch(self, max_articles, url_only=False):
+    def _fetch(self, sites, max_articles, url_only=False):
 
         service = gbuild("customsearch", "v1",
             developerKey=self.dev_key)
@@ -149,12 +153,25 @@ class Google(SearchEngineSource):
         # construct keywords into query
         query = ' '.join(self.keywords)
 
+        # add sites
+        if sites:
+            query += " " + " OR ".join([f"site:{site}" for site in sites])
+
+        if self.start_date:
+            pre_start_date = self.start_date - datetime.timedelta(days=1)
+            query += f" after:{pre_start_date.strftime('%Y-%m-%d')}"
+
+        if self.end_date:
+            post_end_date = self.end_date + datetime.timedelta(days=1)
+            query += f" before:{post_end_date.strftime('%Y-%m-%d')}"
+
         # using siterestrict allows more than 10000 calls per day
         # note both methods still require payment for more than 100 requests a day
-        if self.sites:
-            method = service.cse()
-        else:
-            method = service.cse().siterestrict()
+        # if sites:
+        #     method = service.cse()
+        # else:
+        #     method = service.cse().siterestrict()
+        method = service.cse()
 
         # google custom search returns max of 100 results
         # each page contains max 10 results
@@ -169,12 +186,15 @@ class Google(SearchEngineSource):
                 start=str((page_num * 10) + 1)
             ).execute()
 
+            if int(results['searchInformation']['totalResults']) == 0:
+                raise ValueError("Query to Google Search produced no results.")
+
             items = results['items']
 
             for item in items:
                 link = item['link']
                 if url_only:
-                    yield Article(link)
+                    yield Article(link, init=False)
                 else:
                     yield utils.link_to_article(link, )
 

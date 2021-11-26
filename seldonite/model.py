@@ -1,9 +1,12 @@
 from newspaper.article import Article as NPArticle
 
 class Article(NPArticle):
-    def __init__(self, *args, text = '', **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, url, *args, text = '', init=True, **kwargs):
+        self.source_url = url
         self.text = text
+        
+        if init:
+            super().__init__(*args, **kwargs)
 
     def to_dict(self):
         article_dict = {}

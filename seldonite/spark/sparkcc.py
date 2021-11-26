@@ -111,8 +111,10 @@ class CCSparkJob:
             conf.set('spark.kubernetes.executor.label.app', 'seldonite')
 
             # allow python deps to be used
+            this_dir_path = os.path.dirname(os.path.abspath(__file__))
+            conda_package_path = os.path.join(this_dir_path, 'pyspark_conda_env.tar.gz')
             os.environ['PYSPARK_PYTHON'] = './environment/bin/python'
-            conf.set('spark.archives', 'pyspark_conda_env.tar.gz#environment')
+            conf.set('spark.archives', f'{conda_package_path}#environment')
 
             sc = SparkContext(
                 master=self.spark_master_url,
@@ -405,7 +407,7 @@ class CCIndexWarcSparkJob(CCIndexSparkJob):
         if url_only:
             columns = ['url']
             warc_recs = sqldf.select(*columns).rdd
-            return warc_recs.collect()
+            return warc_recs.flatMap(lambda x: x).collect()
         else:
             columns = ['url', 'warc_filename', 'warc_record_offset', 'warc_record_length']
             if 'content_charset' in sqldf.columns:

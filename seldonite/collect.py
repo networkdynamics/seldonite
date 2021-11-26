@@ -28,18 +28,17 @@ class Collector:
         if self.source.can_keyword_filter:
             self.source.set_keywords(keywords)
 
-    def fetch(self, max_articles=100, url_only=False):
+    def fetch(self, sites=[], max_articles=100, url_only=False, disable_news_heuristics=False):
+        '''
+        'url_only' will mean no checking for articles
+        '''
 
-        articles = self.source.fetch(max_articles, url_only)
+        articles = self.source.fetch(sites, max_articles, url_only, disable_news_heuristics=disable_news_heuristics)
 
-        if self.keywords and not self.source.can_keyword_filter:
-            for article in articles:
-                if filter.contains_keywords(article, self.keywords):
-                    yield article
+        if self.keywords and not self.source.can_keyword_filter and not url_only:
+            articles = (article for article in articles if filter.contains_keywords(article, self.keywords))
 
-        else:
-            for article in articles:
-                yield article
+        return articles
 
 
     def find_topics(self, batch_size=1000):

@@ -37,6 +37,12 @@ def get_crawl_listing(crawl, data_type="wet"):
     listing = txt_listing.splitlines()
     return ['s3://commoncrawl/' + entry for entry in listing]
 
+def get_all_cc_crawls():
+    url = 'https://index.commoncrawl.org/collinfo.json'
+    res = requests.get(url)
+    crawls = res.json()
+    return [crawl['id'] for crawl in crawls]
+
 def most_recent_cc_crawl():
     url = 'https://index.commoncrawl.org/collinfo.json'
     res = requests.get(url)
@@ -69,13 +75,17 @@ def get_cc_crawls_since(date):
 
     return crawl_ids
 
-def construct_query(sites, limit, crawl=None, type=None):
+def construct_query(sites, limit, crawls=None, type=None):
     #TODO automatically get most recent crawl
     query = "SELECT url, warc_filename, warc_record_offset, warc_record_length, content_charset FROM ccindex WHERE subset = 'warc'"
 
-    if crawl:
+    if crawls:
         # 
-        query += f" AND crawl = '{crawl}'"
+        if len(crawls) == 1:
+            query += f" AND crawl = '{crawls[0]}'"
+        else:
+            crawl_list = ', '.join([f"'{crawl}'" for crawl in crawls])
+            query += f" AND crawl IN ({crawl_list})"
 
     # site restrict
     if not all("." in domain for domain in sites):

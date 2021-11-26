@@ -13,15 +13,15 @@ class CCIndexFetchNewsJob(CCIndexWarcSparkJob, FetchNewsJob):
     """ Word count (frequency list) from WARC records matching a SQL query
         on the columnar URL index """
 
-    name = "CCIndexWordCount"
+    name = "CCIndexFetchNewsJob"
 
     records_parsing_failed = None
     records_non_html = None
-
-    def __init__(self, sites=[], limit=None, **kwargs):
-        super().__init__(**kwargs)
-
-        self.query = utils.construct_query(sites, limit, crawl='CC-MAIN-2021-39')
+        
+    def run(self, url_only=False, limit=None, keywords=[], sites=[], crawls=None):
+        self.keywords = keywords
+        self.query = utils.construct_query(sites, limit, crawls=crawls)
+        return super().run(url_only=url_only)
 
     def init_accumulators(self, sc):
         super().init_accumulators(sc)
