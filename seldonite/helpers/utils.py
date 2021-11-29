@@ -2,9 +2,11 @@ import datetime
 import gzip
 import re
 
-from seldonite.model import Article
-
+import botocore
+import boto3
 import requests
+
+from seldonite.model import Article
 
 def link_to_article(link):
     article = Article(link)
@@ -36,6 +38,47 @@ def get_crawl_listing(crawl, data_type="wet"):
     txt_listing = gzip.decompress(res.content).decode("utf-8")
     listing = txt_listing.splitlines()
     return ['s3://commoncrawl/' + entry for entry in listing]
+
+def get_news_crawl_listing(start_date=None, end_date=None):
+    no_sign_request = botocore.client.Config(
+        signature_version=botocore.UNSIGNED)
+    s3client = boto3.client('s3', config=no_sign_request)
+    s3_paginator = s3client.get_paginator('list_objects_v2')
+
+    def keys(bucket_name, prefix='/', delimiter='/', start_after=''):
+        prefix = prefix[1:] if prefix.startswith(delimiter) else prefix
+        start_after = (start_after or prefix) if prefix.endswith(delimiter) else start_after
+        for page in s3_paginator.paginate(Bucket=bucket_name, Prefix=prefix, StartAfter=start_after):
+            for content in page.get('Contents', ()):
+                yield content['Key']
+
+    warc_paths = []
+    if not start_date and not end_date:
+        for key in keys('commoncrawl', prefix='/crawl-data/CC-NEWS/'):
+            warc_paths.append(key)
+        return warc_paths
+
+    if not end_date:
+        end_date = datetime.date.today()
+    elif not start_date:
+        start_date = datetime.date.min
+    
+    delta = end_date - start_date
+
+    # pad ending files to account for time that pages spend in sitemap and rss feed
+    # normally roughly 30 days
+    sitemap_pad = 30
+
+    days = []
+    for i in range(delta.days + 1 + sitemap_pad):
+        days.append(start_date + datetime.timedelta(days=i))
+
+    for day in days:
+        date_path = day.strftime('%Y/%m/CC-NEWS-%Y%m%d')
+        for key in keys('commoncrawl', prefix=f'/crawl-data/CC-NEWS/{date_path}'):
+                warc_paths.append(key)
+
+    return warc_paths
 
 def get_all_cc_crawls():
     url = 'https://index.commoncrawl.org/collinfo.json'

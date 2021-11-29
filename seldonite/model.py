@@ -6,7 +6,7 @@ class Article(NPArticle):
         self.text = text
         
         if init:
-            super().__init__(*args, **kwargs)
+            super().__init__(url, *args, **kwargs)
 
     def to_dict(self):
         article_dict = {}

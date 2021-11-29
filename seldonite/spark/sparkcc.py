@@ -33,11 +33,9 @@ class CCSparkJob:
     warc_input_failed = None
     
 
-    def __init__(self, input_file_listing=None, num_input_partitions=32, local_temp_dir=None, 
+    def __init__(self, num_input_partitions=32, local_temp_dir=None, 
                  log_level='INFO', spark_profiler=None, spark_master_url=None):
 
-        # Path to file listing input paths
-        self.input_file_listing = input_file_listing
         # Number of input splits/partitions, number of parallel tasks to process WARC files/records
         self.num_input_partitions = num_input_partitions
         # Local temporary directory, used to buffer content from S3
@@ -75,7 +73,14 @@ class CCSparkJob:
         return spark_context._jvm.org.apache.log4j.LogManager \
             .getLogger(self.name)
 
-    def run(self, url_only):
+    def run(self, url_only, input_file_listing):
+        '''
+        params:
+        input_file_listing: Path to file listing input paths
+        '''
+
+        self.url_only = url_only
+
         conf = SparkConf()
 
         if self.spark_profiler:
@@ -132,7 +137,7 @@ class CCSparkJob:
 
         self.init_accumulators(sc)
 
-        result = self.run_job(sc, sqlc, url_only)
+        result = self.run_job(sc, sqlc, input_file_listing)
 
         if self.spark_profiler:
             sc.show_profiles()
@@ -156,22 +161,24 @@ class CCSparkJob:
     def reduce_by_key_func(a, b):
         return a + b
 
-    def run_job(self, sc, sqlc):
-        input_data = sc.textFile(self.input_file_listing,
+    def run_job(self, sc, sqlc, input_file_listing):
+        input_data = sc.textFile(input_file_listing,
                                  minPartitions=self.num_input_partitions)
 
         output = input_data.mapPartitionsWithIndex(self.process_warcs) \
-            .reduceByKey(self.reduce_by_key_func)
+            .collect()
 
-        sqlc.createDataFrame(output, schema=self.output_schema) \
-            .coalesce(self.num_output_partitions) \
-            .write \
-            .format(self.output_format) \
-            .option("compression", self.output_compression) \
-            .options(**self.get_output_options()) \
-            .saveAsTable(self.output)
+        # sqlc.createDataFrame(output, schema=self.output_schema) \
+        #     .coalesce(self.num_output_partitions) \
+        #     .write \
+        #     .format(self.output_format) \
+        #     .option("compression", self.output_compression) \
+        #     .options(**self.get_output_options()) \
+        #     .saveAsTable(self.output)
 
         self.log_aggregators(sc)
+
+        return output
 
     def process_warcs(self, id_, iterator):
         s3pattern = re.compile('^s3://([^/]+)/(.+)')
@@ -228,7 +235,9 @@ class CCSparkJob:
            and allows to access also values from ArchiveIterator, namely
            WARC record offset and length."""
         for record in archive_iterator:
-            yield self.process_record(record)
+            success, article = self.process_record(record)
+            if success:
+                yield article
             self.records_processed.add(1)
             # WARC record offset and length should be read after the record
             # has been processed, otherwise the record content is consumed

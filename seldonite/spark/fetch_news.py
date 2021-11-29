@@ -5,35 +5,38 @@ from collections import Counter
 from pyspark.sql.types import StructType, StructField, StringType, LongType
 
 from seldonite.spark.sparkcc import CCSparkJob
+from seldonite.helpers import utils, filter, heuristics
 
 
 class FetchNewsJob(CCSparkJob):
-    """ Word count (frequency list) from texts in Common Crawl WET files"""
+    """ News articles from from texts in Common Crawl WET files"""
 
-    name = "WordCount"
+    name = "FetchNewsJob"
 
-    # output is <word, <term_frequency, document_frequency>>
-    output_schema = StructType([
-        StructField("key", StringType(), True),
-        StructField("val", StructType([
-            StructField("tf", LongType(), True),
-            StructField("df", LongType(), True)]), True)
-    ])
-
-    # simple Unicode-aware tokenization
-    # (not suitable for CJK languages)
-    word_pattern = re.compile('\w+', re.UNICODE)
-
-    @staticmethod
-    def reduce_by_key_func(a, b):
-        # sum values of tuple <term_frequency, document_frequency>
-        return ((a[0] + b[0]), (a[1] + b[1]))
-
-    def process_record(self, record):
-        if not self.is_wet_text_record(record):
+    def process_record(self, url, record):
+        if record.rec_type != 'response':
+            # skip over WARC request or metadata records
             return
-        data = record.content_stream().read().decode('utf-8')
-        words = map(lambda w: w.lower(),
-                    self.word_pattern.findall(data))
-        for word, count in Counter(words).items():
-            yield word, (count, 1)
+        if not self.is_html(record):
+            self.records_non_html.add(1)
+            return
+        page = record.content_stream().read()
+
+        try:
+            article = utils.html_to_article(url, page)
+        except Exception as e:
+            self.get_logger().error("Error converting HTML to article for {}: {}",
+                                    record.rec_headers['WARC-Target-URI'], e)
+            self.records_parsing_failed.add(1)
+            return False, None
+
+        if not heuristics.og_type(article):
+            return False, None
+
+        if article.publish_date < self.start_date or article.publish_date > self.end_date:
+            return False, None
+
+        if self.keywords and not filter.contains_keywords(article, self.keywords):
+            return False, None
+
+        return True, { "title": article.title, "text": article.text, "url": url, "publish_date": article.publish_date }
