@@ -56,29 +56,29 @@ def get_news_crawl_listing(start_date=None, end_date=None):
     if not start_date and not end_date:
         for key in keys('commoncrawl', prefix='/crawl-data/CC-NEWS/'):
             warc_paths.append(key)
-        return warc_paths
 
-    if not end_date:
-        end_date = datetime.date.today()
-    elif not start_date:
-        start_date = datetime.date.min
-    
-    delta = end_date - start_date
+    else:
+        if not end_date:
+            end_date = datetime.date.today()
+        elif not start_date:
+            start_date = datetime.date.min
+        
+        delta = end_date - start_date
 
-    # pad ending files to account for time that pages spend in sitemap and rss feed
-    # normally roughly 30 days
-    sitemap_pad = 30
+        # pad ending files to account for time that pages spend in sitemap and rss feed
+        # normally roughly 30 days
+        sitemap_pad = 30
 
-    days = []
-    for i in range(delta.days + 1 + sitemap_pad):
-        days.append(start_date + datetime.timedelta(days=i))
+        days = []
+        for i in range(delta.days + 1 + sitemap_pad):
+            days.append(start_date + datetime.timedelta(days=i))
 
-    for day in days:
-        date_path = day.strftime('%Y/%m/CC-NEWS-%Y%m%d')
-        for key in keys('commoncrawl', prefix=f'/crawl-data/CC-NEWS/{date_path}'):
-                warc_paths.append(key)
+        for day in days:
+            date_path = day.strftime('%Y/%m/CC-NEWS-%Y%m%d')
+            for key in keys('commoncrawl', prefix=f'/crawl-data/CC-NEWS/{date_path}'):
+                    warc_paths.append(key)
 
-    return warc_paths
+    return [f's3://commoncrawl/{path}' for path in warc_paths]
 
 def get_all_cc_crawls():
     url = 'https://index.commoncrawl.org/collinfo.json'

@@ -157,16 +157,12 @@ class CCSparkJob:
         self.log_aggregator(sc, self.records_processed,
                             'WARC/WAT/WET records processed = {}')
 
-    @staticmethod
-    def reduce_by_key_func(a, b):
-        return a + b
-
     def run_job(self, sc, sqlc, input_file_listing):
-        input_data = sc.textFile(input_file_listing,
-                                 minPartitions=self.num_input_partitions)
+        input_data = sc.parallelize(input_file_listing,
+                                 numSlices=self.num_input_partitions)
 
         output = input_data.mapPartitionsWithIndex(self.process_warcs) \
-            .collect()
+                           .collect()
 
         # sqlc.createDataFrame(output, schema=self.output_schema) \
         #     .coalesce(self.num_output_partitions) \
@@ -235,9 +231,18 @@ class CCSparkJob:
            and allows to access also values from ArchiveIterator, namely
            WARC record offset and length."""
         for record in archive_iterator:
-            success, article = self.process_record(record)
+            url = record.rec_headers.get_header('WARC-Target-URI')
+
+            if not self.check_url(url):
+                continue
+
+            if self.url_only:
+                yield url
+
+            success, obj = self.process_record(url, record)
             if success:
-                yield article
+                yield obj
+            
             self.records_processed.add(1)
             # WARC record offset and length should be read after the record
             # has been processed, otherwise the record content is consumed

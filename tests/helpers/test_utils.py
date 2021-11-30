@@ -36,13 +36,14 @@ def test_cc_index_query_builder(sites, limit, true_query):
     query = utils.construct_query(sites, limit)
     assert query == true_query
 
-def test_get_news_crawl_listing():
-    paths = utils.get_news_crawl_listing()
-    assert paths
 
 @pytest.mark.parametrize("start_date, end_date",
-    [(datetime.date(2017, 1, 1), datetime.date(2017, 6, 1)),
+    [(None, None),
+     (datetime.date(2017, 1, 1), datetime.date(2017, 6, 1)),
      (datetime.date(2018, 3, 1), datetime.date(2018, 9, 1))])
 def test_get_news_crawl_listing_dates(start_date, end_date):
     paths = utils.get_news_crawl_listing(start_date=start_date, end_date=end_date)
     assert paths
+    assert len(paths) > 0
+    assert all(path.startswith('s3://commoncrawl/crawl-data/') for path in paths)
+    assert all(path.endswith('.warc.gz') for path in paths)

@@ -1,4 +1,5 @@
 import re
+from urllib.parse import urlparse
 
 from collections import Counter
 
@@ -6,12 +7,22 @@ from pyspark.sql.types import StructType, StructField, StringType, LongType
 
 from seldonite.spark.sparkcc import CCSparkJob
 from seldonite.helpers import utils, filter, heuristics
+from seldonite.model import Article
 
 
 class FetchNewsJob(CCSparkJob):
     """ News articles from from texts in Common Crawl WET files"""
 
     name = "FetchNewsJob"
+
+    def run(self, listing, url_only=False, limit=None, keywords=[], sites=[]):
+        self.keywords = keywords
+        self.sites = sites
+        return super().run(url_only, listing)
+
+    def check_url(self, url):
+        domain = urlparse(url)
+        return any(site in domain for site in self.sites)
 
     def process_record(self, url, record):
         if record.rec_type != 'response':
@@ -20,6 +31,7 @@ class FetchNewsJob(CCSparkJob):
         if not self.is_html(record):
             self.records_non_html.add(1)
             return
+        
         page = record.content_stream().read()
 
         try:

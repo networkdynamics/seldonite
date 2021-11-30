@@ -100,15 +100,12 @@ class CommonCrawl(WebWideSource):
         # create the spark job
         self.job = CCIndexFetchNewsJob(spark_master_url=self.spark_master_url)
 
-    def set_date_range(self, start_date, end_date, strict=True):
-        super().set_date_range(start_date, end_date, strict=strict)
-
-        # only need to look at crawls that are after the start_date of the search
-        self.crawls = utils.get_cc_crawls_since(start_date)
 
     def _fetch(self, sites, max_articles, url_only=False):
 
-        result = self.job.run(url_only=url_only, limit=max_articles, keywords=self.keywords, sites=sites, crawls=self.crawls)
+        # only need to look at crawls that are after the start_date of the search
+        crawls = utils.get_cc_crawls_since(self.start_date)
+        result = self.job.run(url_only=url_only, limit=max_articles, keywords=self.keywords, sites=sites, crawls=crawls)
 
         if url_only:
             for url in result:
@@ -130,12 +127,6 @@ class NewsCrawl(WebWideSource):
 
         self.spark_master_url = master_url
         self.can_keyword_filter = True
-        if crawl == 'latest':
-            self.crawls = [ utils.most_recent_cc_crawl() ]
-        elif crawl == 'all':
-            self.crawls = utils.get_all_cc_crawls()
-        else:
-            self.crawls = [ crawl ]
 
         # we apply newsplease heuristics in spark job
         self.news_only = True
@@ -143,18 +134,13 @@ class NewsCrawl(WebWideSource):
         # create the spark job
         self.job = FetchNewsJob()
 
-    def set_date_range(self, start_date, end_date, strict=True):
-        super().set_date_range(start_date, end_date, strict=strict)
-
-        # only need to look at crawls that are after the start_date of the search
-        self.crawls = utils.get_cc_crawls_since(start_date)
 
     def _fetch(self, sites, max_articles, url_only=False):
 
         # get wet file listings from common crawl
-        listing = utils.get_crawl_listing(self.crawls)
+        listings = utils.get_news_crawl_listing(start_date=self.start_date, end_date=self.end_date)
 
-        result = self.job.run(url_only=url_only, limit=max_articles, keywords=self.keywords, sites=sites, crawls=self.crawls)
+        result = self.job.run(listings, url_only=url_only, keywords=self.keywords)
 
         if url_only:
             for url in result:
