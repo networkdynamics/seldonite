@@ -15,10 +15,16 @@ class FetchNewsJob(CCSparkJob):
 
     name = "FetchNewsJob"
 
-    def run(self, listing, url_only=False, limit=None, keywords=[], sites=[]):
+    def run(self, listing, url_only=False, limit=None, keywords=[], sites=[], start_date=None, end_date=None):
+        self.set_constraints(limit, keywords, sites, start_date, end_date)
+        return super().run(url_only, listing)
+
+    def set_constraints(self, limit, keywords, sites, start_date, end_date):
+        self.limit = limit
         self.keywords = keywords
         self.sites = sites
-        return super().run(url_only, listing)
+        self.start_date = start_date
+        self.end_date = end_date
 
     def check_url(self, url):
         domain = urlparse(url)
@@ -45,7 +51,7 @@ class FetchNewsJob(CCSparkJob):
         if not heuristics.og_type(article):
             return False, None
 
-        if article.publish_date < self.start_date or article.publish_date > self.end_date:
+        if (self.start_date and article.publish_date < self.start_date) or (self.end_date and article.publish_date > self.end_date):
             return False, None
 
         if self.keywords and not filter.contains_keywords(article, self.keywords):

@@ -105,7 +105,8 @@ class CommonCrawl(WebWideSource):
 
         # only need to look at crawls that are after the start_date of the search
         crawls = utils.get_cc_crawls_since(self.start_date)
-        result = self.job.run(url_only=url_only, limit=max_articles, keywords=self.keywords, sites=sites, crawls=crawls)
+        result = self.job.run(url_only=url_only, limit=max_articles, keywords=self.keywords, 
+                              sites=sites, crawls=crawls, start_date=self.start_date, end_date=self.end_date)
 
         if url_only:
             for url in result:
@@ -124,15 +125,13 @@ class NewsCrawl(WebWideSource):
         params:
         '''
         super().__init__()
-
-        self.spark_master_url = master_url
         self.can_keyword_filter = True
 
         # we apply newsplease heuristics in spark job
         self.news_only = True
 
         # create the spark job
-        self.job = FetchNewsJob()
+        self.job = FetchNewsJob(spark_master_url=master_url)
 
 
     def _fetch(self, sites, max_articles, url_only=False):

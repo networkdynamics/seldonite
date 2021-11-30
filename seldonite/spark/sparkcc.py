@@ -117,7 +117,7 @@ class CCSparkJob:
 
             # allow python deps to be used
             this_dir_path = os.path.dirname(os.path.abspath(__file__))
-            conda_package_path = os.path.join(this_dir_path, 'pyspark_conda_env.tar.gz')
+            conda_package_path = os.path.join(this_dir_path, 'seldonite_spark_env.tar.gz')
             os.environ['PYSPARK_PYTHON'] = './environment/bin/python'
             conf.set('spark.archives', f'{conda_package_path}#environment')
 
@@ -161,7 +161,7 @@ class CCSparkJob:
         input_data = sc.parallelize(input_file_listing,
                                  numSlices=self.num_input_partitions)
 
-        output = input_data.mapPartitionsWithIndex(self.process_warcs) \
+        output = input_data.mapPartitions(self.process_warcs) \
                            .collect()
 
         # sqlc.createDataFrame(output, schema=self.output_schema) \
@@ -176,7 +176,7 @@ class CCSparkJob:
 
         return output
 
-    def process_warcs(self, id_, iterator):
+    def process_warcs(self, iterator):
         s3pattern = re.compile('^s3://([^/]+)/(.+)')
         base_dir = os.path.abspath(os.path.dirname(__file__))
 
