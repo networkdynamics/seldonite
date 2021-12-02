@@ -47,18 +47,21 @@ def test_articles_pulled_from_url_via_listing():
     warc_urls = utils.get_news_crawl_listing()[-1:]
 
     master_url = ""
-    job = FetchNewsJob(spark_master_url=master_url)
+    job = FetchNewsJob(spark_master_url=master_url, num_input_partitions=1)
     job.records_processed = mocks.MockAccumulator()
     job.warc_input_processed = mocks.MockAccumulator()
     job.warc_input_failed = mocks.MockAccumulator()
-    job.set_constraints(None, [], [], None, None)
-    articles = job.process_warcs(warc_urls)
 
+    limit = 10
+    sites = ['thehour.com']
+    job.set_constraints(limit, [], sites, None, None)
+    job.url_only = False
+    articles_gen = job.process_warcs(warc_urls)
+
+    articles = list(articles_gen)
+    assert len(articles) <= limit
     for article in articles:
         assert 'text' in article
-        assert article['text']
         assert 'title' in article
-        assert article['title']
         assert 'url' in article
         assert 'publish_date' in article
-        assert article['publish_date']

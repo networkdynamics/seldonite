@@ -138,6 +138,8 @@ def construct_query(sites, limit, crawls=None, type=None):
         site_list = ', '.join([f"'{site}'" for site in sites])
         query += f" AND url_host_registered_domain IN ({site_list})"
 
+    # TODO Language filter
+
     # set limit to sites if needed
     if limit:
         query += f" LIMIT {str(limit)}"

@@ -1,13 +1,5 @@
-import re
-from urllib.parse import urlparse
-
-from collections import Counter
-
-from pyspark.sql.types import StructType, StructField, StringType, LongType
-
 from seldonite.spark.sparkcc import CCSparkJob
 from seldonite.helpers import utils, filter, heuristics
-from seldonite.model import Article
 
 
 class FetchNewsJob(CCSparkJob):
@@ -26,18 +18,21 @@ class FetchNewsJob(CCSparkJob):
         self.start_date = start_date
         self.end_date = end_date
 
-    def check_url(self, url):
-        domain = urlparse(url)
-        return any(site in domain for site in self.sites)
-
-    def process_record(self, url, record):
+    def process_record(self, record):
         if record.rec_type != 'response':
             # skip over WARC request or metadata records
-            return
+            return None
         if not self.is_html(record):
-            self.records_non_html.add(1)
-            return
+            return None
         
+        url = record.rec_headers.get_header('WARC-Target-URI')
+
+        if self.sites and not filter.check_url_from_sites(url, self.sites):
+            return None
+
+        if self.url_only:
+            return url
+
         page = record.content_stream().read()
 
         try:
@@ -46,15 +41,15 @@ class FetchNewsJob(CCSparkJob):
             self.get_logger().error("Error converting HTML to article for {}: {}",
                                     record.rec_headers['WARC-Target-URI'], e)
             self.records_parsing_failed.add(1)
-            return False, None
+            return None
 
         if not heuristics.og_type(article):
-            return False, None
+            return None
 
         if (self.start_date and article.publish_date < self.start_date) or (self.end_date and article.publish_date > self.end_date):
-            return False, None
+            return None
 
         if self.keywords and not filter.contains_keywords(article, self.keywords):
-            return False, None
+            return None
 
-        return True, { "title": article.title, "text": article.text, "url": url, "publish_date": article.publish_date }
+        return { "title": article.title, "text": article.text, "url": url, "publish_date": article.publish_date }

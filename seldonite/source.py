@@ -139,7 +139,7 @@ class NewsCrawl(WebWideSource):
         # get wet file listings from common crawl
         listings = utils.get_news_crawl_listing(start_date=self.start_date, end_date=self.end_date)
 
-        result = self.job.run(listings, url_only=url_only, keywords=self.keywords)
+        result = self.job.run(listings, url_only=url_only, keywords=self.keywords, limit=max_articles, sites=sites)
 
         if url_only:
             for url in result:

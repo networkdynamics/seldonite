@@ -14,6 +14,6 @@ class Article(NPArticle):
         article_dict["text"] = self.text
         article_dict["authors"] = self.authors
         article_dict["url"] = self.url
-        article_dict["publish_date"] = self.publish_date
+        article_dict["publish_date"] = self.publish_date.isoformat()
 
         return article_dict

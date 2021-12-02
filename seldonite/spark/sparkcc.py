@@ -1,5 +1,6 @@
 import json
 import logging
+import math
 import os
 import re
 
@@ -33,7 +34,7 @@ class CCSparkJob:
     warc_input_failed = None
     
 
-    def __init__(self, num_input_partitions=32, local_temp_dir=None, 
+    def __init__(self, num_input_partitions=64, local_temp_dir=None, 
                  log_level='INFO', spark_profiler=None, spark_master_url=None):
 
         # Number of input splits/partitions, number of parallel tasks to process WARC files/records
@@ -63,6 +64,7 @@ class CCSparkJob:
 
     def init_accumulators(self, sc):
         self.records_processed = sc.accumulator(0)
+        self.records_parsing_failed = sc.accumulator(0)
         self.warc_input_processed = sc.accumulator(0)
         self.warc_input_failed = sc.accumulator(0)
 
@@ -156,13 +158,15 @@ class CCSparkJob:
                             'WARC/WAT/WET input files failed = {}')
         self.log_aggregator(sc, self.records_processed,
                             'WARC/WAT/WET records processed = {}')
+        self.log_aggregator(sc, self.records_parsing_failed,
+                            'WARC/WAT/WET records parsing failed = {}')
 
     def run_job(self, sc, sqlc, input_file_listing):
         input_data = sc.parallelize(input_file_listing,
                                  numSlices=self.num_input_partitions)
 
         output = input_data.mapPartitions(self.process_warcs) \
-                           .collect()
+                           .take(self.limit)
 
         # sqlc.createDataFrame(output, schema=self.output_schema) \
         #     .coalesce(self.num_output_partitions) \
@@ -230,20 +234,19 @@ class CCSparkJob:
         """Iterate over all WARC records. This method can be customized
            and allows to access also values from ArchiveIterator, namely
            WARC record offset and length."""
+        records_successfully_processed = 0
+        num_to_successfully_process = math.ceil(self.limit / self.num_input_partitions)
         for record in archive_iterator:
-            url = record.rec_headers.get_header('WARC-Target-URI')
-
-            if not self.check_url(url):
-                continue
-
-            if self.url_only:
-                yield url
-
-            success, obj = self.process_record(url, record)
-            if success:
+            obj = self.process_record(record)
+            if obj:
                 yield obj
+                records_successfully_processed += 1
             
             self.records_processed.add(1)
+
+            # crude way of adding limiter
+            if self.limit and records_successfully_processed >= num_to_successfully_process:
+                break
             # WARC record offset and length should be read after the record
             # has been processed, otherwise the record content is consumed
             # while offset and length are determined:
@@ -403,8 +406,8 @@ class CCIndexWarcSparkJob(CCIndexSparkJob):
                                               no_record_parse=no_parse):
                     # pass `content_charset` forward to subclass processing WARC records
                     record.rec_headers['WARC-Identified-Content-Charset'] = content_charset
-                    success, article = self.process_record(url, record)
-                    if success:
+                    article = self.process_record(record)
+                    if article:
                         yield article
 
                     self.records_processed.add(1)
