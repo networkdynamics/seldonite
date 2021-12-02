@@ -165,8 +165,12 @@ class CCSparkJob:
         input_data = sc.parallelize(input_file_listing,
                                  numSlices=self.num_input_partitions)
 
-        output = input_data.mapPartitions(self.process_warcs) \
-                           .take(self.limit)
+        rdd = input_data.mapPartitions(self.process_warcs)
+
+        if self.limit:
+            output = rdd.take(self.limit)
+        else:
+            output = rdd.collect()
 
         # sqlc.createDataFrame(output, schema=self.output_schema) \
         #     .coalesce(self.num_output_partitions) \
