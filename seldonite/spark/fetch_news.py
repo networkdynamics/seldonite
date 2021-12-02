@@ -25,6 +25,8 @@ class FetchNewsJob(CCSparkJob):
         if not self.is_html(record):
             return None
         
+        # TODO filter by language
+
         url = record.rec_headers.get_header('WARC-Target-URI')
 
         if self.sites and not filter.check_url_from_sites(url, self.sites):

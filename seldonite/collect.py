@@ -17,6 +17,7 @@ class Collector:
         Set dates to fetch news from, range is inclusive
         '''
         self.source.set_date_range(start_date, end_date)
+        # TODO return self to allow method chaining
 
     def by_keywords(self, keywords):
         '''
@@ -28,6 +29,9 @@ class Collector:
         if self.source.can_keyword_filter:
             self.source.set_keywords(keywords)
 
+        # TODO return self to allow method chaining
+
+    # TODO split arguments into methods
     def fetch(self, sites=[], max_articles=100, url_only=False, disable_news_heuristics=False):
         '''
         'url_only' will mean no checking for articles

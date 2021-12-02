@@ -393,6 +393,7 @@ class CCIndexWarcSparkJob(CCIndexSparkJob):
             if 'content_charset' in row:
                 content_charset = row['content_charset']
             self.get_logger().debug("Fetching WARC record for {}".format(url))
+            # TODO adapt if grouping warc records
             rangereq = 'bytes={}-{}'.format(offset, (offset+length-1))
             try:
                 response = s3client.get_object(Bucket=bucketname,
@@ -439,7 +440,9 @@ class CCIndexWarcSparkJob(CCIndexSparkJob):
         if num_warcs == 0:
             raise ValueError()
 
+        # TODO group records by warc file
         rdd = warc_recs.mapPartitions(self.fetch_process_warc_records)
+        # TODO optional take(self.limit)
         output = rdd.collect()
 
         self.log_aggregators(sc)
