@@ -239,7 +239,7 @@ class CCSparkJob:
            and allows to access also values from ArchiveIterator, namely
            WARC record offset and length."""
         records_successfully_processed = 0
-        num_to_successfully_process = math.ceil(self.limit / self.num_input_partitions)
+        num_to_successfully_process = math.ceil(self.limit / self.num_input_partitions) if self.limit else None
         for record in archive_iterator:
             obj = self.process_record(record)
             if obj:
