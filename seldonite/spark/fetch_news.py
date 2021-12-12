@@ -1,5 +1,6 @@
+from seldonite import filter
 from seldonite.spark.sparkcc import CCSparkJob
-from seldonite.helpers import utils, filter, heuristics
+from seldonite.helpers import utils, heuristics
 
 
 class FetchNewsJob(CCSparkJob):

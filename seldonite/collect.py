@@ -11,7 +11,7 @@ class Collector:
     def __init__(self, source):
         self.source = source
         self.keywords = None
-        self.url_only = False
+        self.url_only_val = False
         self.max_articles = None
 
     def in_date_range(self, start_date, end_date):
@@ -42,7 +42,7 @@ class Collector:
         return self
 
     def url_only(self, set=True):
-        self.url_only = set
+        self.url_only_val = set
         return self
 
     # TODO split arguments into methods
@@ -51,9 +51,9 @@ class Collector:
         'url_only' will mean no checking for articles
         '''
 
-        articles = self.source.fetch(self.sites, self.max_articles, self.url_only, disable_news_heuristics=disable_news_heuristics)
+        articles = self.source.fetch(self.sites, self.max_articles, self.url_only_val, disable_news_heuristics=disable_news_heuristics)
 
-        if self.keywords and not self.source.can_keyword_filter and not self.url_only:
+        if self.keywords and not self.source.can_keyword_filter and not self.url_only_val:
             articles = (article for article in articles if filter.contains_keywords(article, self.keywords))
 
         return articles

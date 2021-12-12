@@ -1,7 +1,7 @@
 
 import pytest
 
-from seldonite.helpers import filter
+from seldonite import filter
 
 @pytest.mark.parametrize("url, sites, is_from_sites",
     [("https://apnews.com/article/abortion-donald-trump-us-supreme-court-health-amy-coney-barrett-a3b5cf9621315e6c623dc80a790842d8", ["apnews.com"], True),

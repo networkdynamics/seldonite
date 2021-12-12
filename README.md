@@ -82,3 +82,4 @@ make test
 
 * Spark based pipeline based on Sebastien Nagel's [cc-pyspark](https://github.com/commoncrawl/cc-pyspark) library. 
 * Heuristics for News Articles adapted from [newsplease](https://github.com/fhamborg/news-please)
+* Political news classifier taken from [Political-News-Filter](https://github.com/lukasgebhard/Political-News-Filter)
