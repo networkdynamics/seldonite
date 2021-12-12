@@ -346,7 +346,7 @@ class CCIndexSparkJob(CCSparkJob):
         return sqldf
 
     def run_job(self, sc, sqlc):
-        sqldf = self.load_dataframe(sc, self.num_output_partitions)
+        sqldf = self.load_dataframe(sc, self.num_input_partitions)
 
         self.log_aggregators(sc)
 

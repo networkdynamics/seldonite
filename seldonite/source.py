@@ -120,8 +120,8 @@ class CommonCrawl(WebWideSource):
                 yield utils.dict_to_article(article_dict)
 
     def query_index(self, query):
-        job = CCIndexSparkJob(spark_master_url=self.spark_master_url)
-        job.run()
+        job = CCIndexSparkJob(spark_master_url=self.spark_master_url, query=query)
+        return job.run()
 
 class NewsCrawl(WebWideSource):
     '''
