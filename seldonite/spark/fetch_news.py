@@ -9,7 +9,7 @@ class FetchNewsJob(CCSparkJob):
 
     def run(self, listing, url_only=False, limit=None, keywords=[], sites=[], start_date=None, end_date=None):
         self.set_constraints(limit, keywords, sites, start_date, end_date)
-        return super().run(url_only, listing)
+        return super().run(url_only=url_only, input_file_listing=listing)
 
     def set_constraints(self, limit, keywords, sites, start_date, end_date):
         self.limit = limit

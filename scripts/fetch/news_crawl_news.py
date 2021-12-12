@@ -16,9 +16,11 @@ def main(args):
         
     cc_source = source.NewsCrawl(master_url=args.master_url)
 
-    collector = collect.Collector(cc_source)
-    collector.set_date_range(datetime.date(2021, 12, 1), datetime.date(2021, 12, 1))
-    articles = collector.fetch(max_articles=10, sites=sites)
+    collector = collect.Collector(cc_source) \
+                    .in_date_range(datetime.date(2021, 12, 1), datetime.date(2021, 12, 1)) \
+                    .on_sites(sites) \
+                    .limit_num_articles(10)
+    articles = collector.fetch()
 
     json_articles = json.dumps([article.to_dict() for article in articles], indent=2)
     if args.out:

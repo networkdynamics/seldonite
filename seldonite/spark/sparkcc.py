@@ -75,13 +75,14 @@ class CCSparkJob:
         return spark_context._jvm.org.apache.log4j.LogManager \
             .getLogger(self.name)
 
-    def run(self, url_only, input_file_listing):
+    def run(self, url_only=None, input_file_listing=None):
         '''
         params:
         input_file_listing: Path to file listing input paths
         '''
 
         self.url_only = url_only
+        self.input_file_listing = input_file_listing
 
         conf = SparkConf()
 
@@ -139,7 +140,7 @@ class CCSparkJob:
 
         self.init_accumulators(sc)
 
-        result = self.run_job(sc, sqlc, input_file_listing)
+        result = self.run_job(sc, sqlc)
 
         if self.spark_profiler:
             sc.show_profiles()
@@ -161,8 +162,8 @@ class CCSparkJob:
         self.log_aggregator(sc, self.records_parsing_failed,
                             'WARC/WAT/WET records parsing failed = {}')
 
-    def run_job(self, sc, sqlc, input_file_listing):
-        input_data = sc.parallelize(input_file_listing,
+    def run_job(self, sc, sqlc):
+        input_data = sc.parallelize(self.input_file_listing,
                                  numSlices=self.num_input_partitions)
 
         rdd = input_data.mapPartitions(self.process_warcs)
@@ -347,13 +348,9 @@ class CCIndexSparkJob(CCSparkJob):
     def run_job(self, sc, sqlc):
         sqldf = self.load_dataframe(sc, self.num_output_partitions)
 
-        sqldf.write \
-            .format(self.output_format) \
-            .option("compression", self.output_compression) \
-            .options(**self.get_output_options()) \
-            .saveAsTable(self.output)
-
         self.log_aggregators(sc)
+
+        return sqldf.toPandas()
 
 
 class CCIndexWarcSparkJob(CCIndexSparkJob):
@@ -423,10 +420,10 @@ class CCIndexWarcSparkJob(CCIndexSparkJob):
                     'Invalid WARC record: {} ({}, offset: {}, length: {}) - {}'
                     .format(url, warc_path, offset, length, exception))
 
-    def run_job(self, sc, sqlc, url_only):
+    def run_job(self, sc, sqlc):
         sqldf = self.load_dataframe(sc, self.num_input_partitions)
 
-        if url_only:
+        if self.url_only:
             columns = ['url']
             warc_recs = sqldf.select(*columns).rdd
             return warc_recs.flatMap(lambda x: x).collect()

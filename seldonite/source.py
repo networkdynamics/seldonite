@@ -4,6 +4,7 @@ from seldonite.helpers import heuristics, utils
 from seldonite.model import Article
 from seldonite.spark.cc_index_fetch_news import CCIndexFetchNewsJob
 from seldonite.spark.fetch_news import FetchNewsJob
+from seldonite.spark.sparkcc import CCIndexSparkJob
 
 from googleapiclient.discovery import build as gbuild
 from selenium import webdriver
@@ -79,7 +80,7 @@ class CommonCrawl(WebWideSource):
     Source that uses Spark to search CommonCrawl
     '''
 
-    def __init__(self, master_url=None, crawl='latest'):
+    def __init__(self, master_url=None):
         '''
         params:
         '''
@@ -87,6 +88,10 @@ class CommonCrawl(WebWideSource):
 
         self.spark_master_url = master_url
         self.can_keyword_filter = True
+        # we apply newsplease heuristics in spark job
+        self.news_only = True
+
+    def set_crawls(self, crawl):
         if crawl == 'latest':
             self.crawls = [ utils.most_recent_cc_crawl() ]
         elif crawl == 'all':
@@ -94,19 +99,18 @@ class CommonCrawl(WebWideSource):
         else:
             self.crawls = [ crawl ]
 
-        # we apply newsplease heuristics in spark job
-        self.news_only = True
+    def _fetch(self, sites, max_articles, url_only=False):
+        # only need to look at crawls that are after the start_date of the search
+        if self.start_date is not None:
+            self.crawls = utils.get_cc_crawls_since(self.start_date)
+
+        if self.crawls is None:
+            raise ValueError('Set crawls either using `set_crawls` or `in_date_range`')
 
         # create the spark job
-        self.job = CCIndexFetchNewsJob(spark_master_url=self.spark_master_url)
-
-
-    def _fetch(self, sites, max_articles, url_only=False):
-
-        # only need to look at crawls that are after the start_date of the search
-        crawls = utils.get_cc_crawls_since(self.start_date)
-        result = self.job.run(url_only=url_only, limit=max_articles, keywords=self.keywords, 
-                              sites=sites, crawls=crawls, start_date=self.start_date, end_date=self.end_date)
+        job = CCIndexFetchNewsJob(spark_master_url=self.spark_master_url)
+        result = job.run(url_only=url_only, limit=max_articles, keywords=self.keywords, 
+                         sites=sites, crawls=self.crawls, start_date=self.start_date, end_date=self.end_date)
 
         if url_only:
             for url in result:
@@ -114,6 +118,10 @@ class CommonCrawl(WebWideSource):
         else:
             for article_dict in result:
                 yield utils.dict_to_article(article_dict)
+
+    def query_index(self, query):
+        job = CCIndexSparkJob(spark_master_url=self.spark_master_url)
+        job.run()
 
 class NewsCrawl(WebWideSource):
     '''
@@ -130,16 +138,15 @@ class NewsCrawl(WebWideSource):
         # we apply newsplease heuristics in spark job
         self.news_only = True
 
-        # create the spark job
-        self.job = FetchNewsJob(spark_master_url=master_url)
-
 
     def _fetch(self, sites, max_articles, url_only=False):
 
         # get wet file listings from common crawl
         listings = utils.get_news_crawl_listing(start_date=self.start_date, end_date=self.end_date)
 
-        result = self.job.run(listings, url_only=url_only, keywords=self.keywords, limit=max_articles, sites=sites)
+        # create the spark job
+        job = FetchNewsJob(spark_master_url=self.spark_master_url)
+        result = job.run(listings, url_only=url_only, keywords=self.keywords, limit=max_articles, sites=sites)
 
         if url_only:
             for url in result:

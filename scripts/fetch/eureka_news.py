@@ -9,8 +9,8 @@ def main(args):
 
     eureka_source = source.Eureka(args.chrome_driver, args.eureka_url, username=args.username, password=args.password)
 
-    collector = collect.Collector(eureka_source)
-    collector.by_keywords([args.keyword])
+    collector = collect.Collector(eureka_source) \
+                    .by_keywords([args.keyword])
     articles = collector.fetch()
 
     # get first 10 articles

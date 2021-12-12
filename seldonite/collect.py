@@ -11,13 +11,15 @@ class Collector:
     def __init__(self, source):
         self.source = source
         self.keywords = None
+        self.url_only = False
+        self.max_articles = None
 
-    def set_date_range(self, start_date, end_date):
+    def in_date_range(self, start_date, end_date):
         '''
         Set dates to fetch news from, range is inclusive
         '''
         self.source.set_date_range(start_date, end_date)
-        # TODO return self to allow method chaining
+        return self
 
     def by_keywords(self, keywords):
         '''
@@ -29,17 +31,29 @@ class Collector:
         if self.source.can_keyword_filter:
             self.source.set_keywords(keywords)
 
-        # TODO return self to allow method chaining
+        return self
+
+    def on_sites(self, sites):
+        self.sites = sites
+        return self
+
+    def limit_num_articles(self, limit):
+        self.max_articles = limit
+        return self
+
+    def url_only(self, set=True):
+        self.url_only = set
+        return self
 
     # TODO split arguments into methods
-    def fetch(self, sites=[], max_articles=100, url_only=False, disable_news_heuristics=False):
+    def fetch(self, disable_news_heuristics=False):
         '''
         'url_only' will mean no checking for articles
         '''
 
-        articles = self.source.fetch(sites, max_articles, url_only, disable_news_heuristics=disable_news_heuristics)
+        articles = self.source.fetch(self.sites, self.max_articles, self.url_only, disable_news_heuristics=disable_news_heuristics)
 
-        if self.keywords and not self.source.can_keyword_filter and not url_only:
+        if self.keywords and not self.source.can_keyword_filter and not self.url_only:
             articles = (article for article in articles if filter.contains_keywords(article, self.keywords))
 
         return articles

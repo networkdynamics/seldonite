@@ -15,9 +15,9 @@ def main(args):
         
     cc_source = source.CommonCrawl(master_url=args.master_url, sites=sites)
 
-    collector = collect.Collector(cc_source)
-    collector.by_keywords([args.keyword])
-    articles = collector.fetch(max_articles=None)
+    collector = collect.Collector(cc_source) \
+                    .by_keywords([args.keyword])
+    articles = collector.fetch()
 
     json_articles = json.dumps([article.to_dict() for article in articles], indent=2)
     if args.out:

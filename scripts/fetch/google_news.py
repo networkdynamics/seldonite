@@ -10,8 +10,8 @@ def main(args):
     sites = [args.site]
     google_source = source.Google(dev_key=args.dev_key, engine_id=args.engine_id, sites=sites, max_requests=1)
 
-    collector = collect.Collector(google_source)
-    collector.by_keywords([args.keyword])
+    collector = collect.Collector(google_source) \
+                    .by_keywords([args.keyword])
     articles = collector.fetch()
 
     json_articles = json.dumps([article.to_dict() for article in articles], indent=2)
