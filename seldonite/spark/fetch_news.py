@@ -1,4 +1,4 @@
-from seldonite import filter
+from seldonite import filters
 from seldonite.spark.sparkcc import CCSparkJob
 from seldonite.helpers import utils, heuristics
 
@@ -10,7 +10,7 @@ class FetchNewsJob(CCSparkJob):
 
     def run(self, listing, url_only=False, limit=None, keywords=[], sites=[], start_date=None, end_date=None):
         self.set_constraints(limit, keywords, sites, start_date, end_date)
-        return super().run(url_only=url_only, input_file_listing=listing)
+        return super().run(listing, url_only)
 
     def set_constraints(self, limit, keywords, sites, start_date, end_date):
         self.limit = limit
@@ -30,7 +30,7 @@ class FetchNewsJob(CCSparkJob):
 
         url = record.rec_headers.get_header('WARC-Target-URI')
 
-        if self.sites and not filter.check_url_from_sites(url, self.sites):
+        if self.sites and not filters.check_url_from_sites(url, self.sites):
             return None
 
         if self.url_only:
@@ -52,7 +52,7 @@ class FetchNewsJob(CCSparkJob):
         if (self.start_date and article.publish_date < self.start_date) or (self.end_date and article.publish_date > self.end_date):
             return None
 
-        if self.keywords and not filter.contains_keywords(article, self.keywords):
+        if self.keywords and not filters.contains_keywords(article, self.keywords):
             return None
 
         return { "title": article.title, "text": article.text, "url": url, "publish_date": article.publish_date }

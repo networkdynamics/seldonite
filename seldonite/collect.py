@@ -1,4 +1,5 @@
-from seldonite.helpers import filter, preprocess
+from seldonite import filters
+from seldonite.helpers import preprocess
 
 from gensim import models, corpora
 
@@ -54,7 +55,7 @@ class Collector:
         articles = self.source.fetch(self.sites, self.max_articles, self.url_only_val, disable_news_heuristics=disable_news_heuristics)
 
         if self.keywords and not self.source.can_keyword_filter and not self.url_only_val:
-            articles = (article for article in articles if filter.contains_keywords(article, self.keywords))
+            articles = (article for article in articles if filters.contains_keywords(article, self.keywords))
 
         return articles
 

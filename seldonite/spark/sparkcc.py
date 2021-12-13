@@ -75,7 +75,7 @@ class CCSparkJob:
         return spark_context._jvm.org.apache.log4j.LogManager \
             .getLogger(self.name)
 
-    def run(self, url_only=None, input_file_listing=None):
+    def run(self, input_file_listing, url_only):
         '''
         params:
         input_file_listing: Path to file listing input paths
@@ -83,7 +83,9 @@ class CCSparkJob:
 
         self.url_only = url_only
         self.input_file_listing = input_file_listing
+        return self._run()
 
+    def _run(self):
         conf = SparkConf()
 
         if self.spark_profiler:
@@ -352,6 +354,10 @@ class CCIndexSparkJob(CCSparkJob):
 
         return sqldf.toPandas()
 
+    def run(self, query):
+        self.query = query
+        return self._run()
+
 
 class CCIndexWarcSparkJob(CCIndexSparkJob):
     """
@@ -452,3 +458,7 @@ class CCIndexWarcSparkJob(CCIndexSparkJob):
         #     .option("compression", self.output_compression) \
         #     .options(**self.get_output_options()) \
         #     .saveAsTable(self.output)
+
+    def run(self, query, url_only):
+        self.url_only = url_only
+        return super().run(query)
