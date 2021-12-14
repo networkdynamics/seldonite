@@ -4,7 +4,7 @@ from seldonite.helpers import heuristics, utils
 from seldonite.model import Article
 from seldonite.spark.cc_index_fetch_news import CCIndexFetchNewsJob
 from seldonite.spark.fetch_news import FetchNewsJob
-from seldonite.spark.sparkcc import CCIndexSparkJob
+from seldonite.spark.query_index import QueryIndexJob
 
 from googleapiclient.discovery import build as gbuild
 from selenium import webdriver
@@ -120,7 +120,7 @@ class CommonCrawl(WebWideSource):
                 yield utils.dict_to_article(article_dict)
 
     def query_index(self, query):
-        job = CCIndexSparkJob(spark_master_url=self.spark_master_url)
+        job = QueryIndexJob(spark_master_url=self.spark_master_url)
         return job.run(query)
 
 class NewsCrawl(WebWideSource):

@@ -6,8 +6,9 @@ import pandas as pd
 import numpy as np
 from keras.engine.saving import load_model
 from keras.utils import np_utils
-from keras_preprocessing.text import tokenizer_from_json
-from keras_preprocessing import sequence
+from keras.preprocessing.text import tokenizer_from_json
+from keras.preprocessing import sequence
+from zoo.orca.learn.tf.estimator import Estimator
 
 
 _POLITICAL_ARTICLE = '''White House declares war against terror. The US government officially announced a ''' \
@@ -24,8 +25,26 @@ _NONPOLITICAL_ARTICLE = '''Table tennis world cup 2025 takes place in South Kore
                         '''to the advantage of underdog Bob Bobby who has been playing outstanding matches ''' \
                         '''in the National Table Tennis League this year.'''
 
+def spark_filter(df):
 
-def filter_news(news_articles, threshold=0.5):
+    PADDING_SIZE = 1500
+    with open('./pon_classifier/tokenizer.json', 'r') as tokenizer_file:
+            json = tokenizer_file.read()
+
+    tokenizer = tokenizer_from_json(json)
+    tokens = tokenizer.texts_to_sequences(df)
+    tokens = pd.Series(list(sequence.pad_sequences(tokens, maxlen=PADDING_SIZE)), index=tokens.index)
+
+def spark_evaluate(rdd):
+    BATCH_SIZE = 256
+
+    model = load_model('./pon_classifier/model.h5')
+    est = Estimator.from_keras(keras_model=model)
+    preds = est.predict(rdd, batch_size=BATCH_SIZE)
+    #TODO convert to spark code
+    return preds[:, 1]
+
+def filter(news_articles, threshold=0.5):
     """
     Filter out all news articles that do not cover policy topics.
 

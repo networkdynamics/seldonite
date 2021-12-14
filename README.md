@@ -22,15 +22,12 @@ Please see the wiki for more detail on sources and methods
 
 ## Setup
 
-To install seldonite as editable, and dependencies via pip:
+To install seldonite as editable, and dependencies via conda:
 ```
-pip install -e .
-pip install -r requirements.txt
+conda env update -f ./environment.yml
 ```
-Or if you have `make`:
-```
-make setup
-```
+
+This library uses a variety of third party libraries, please see limited setup instructions below:
 
 ### Spacy
 
@@ -51,16 +48,14 @@ rm chromedriver_linux64.zip
 
 ### Spark
 
-To make Python dependencies available to Spark executors, use venv:
+To make Python dependencies available to Spark executors, use the dependency packaging script:
 ```
-conda env create -f ./environment.yml
-conda pack -n pyspark_conda_env -f -o pyspark_conda_env.tar.gz
+bash ./seldonite/spark/package_pyspark_deps.sh
 ```
-then in the Python code:
-```
-os.environ['PYSPARK_PYTHON'] = './environment/bin/python'
-conf.set('spark.archives', 'pyspark_conda_env.tar.gz#environment)
-```
+
+### Horovod
+
+
 
 ## Tests
 
@@ -69,13 +64,7 @@ We use `pytest`.
 To run tests, run these commands from the top level directory:
 
 ```
-pip install -e .
 pytest
-```
-
-Or: 
-```
-make test
 ```
 
 ## Credits

@@ -56,3 +56,13 @@ class FetchNewsJob(CCSparkJob):
             return None
 
         return { "title": article.title, "text": article.text, "url": url, "publish_date": article.publish_date }
+
+
+    def process_dataset(self, dataset):
+
+        
+
+        if self.limit:
+            return dataset.take(self.limit)
+        else:
+            return dataset.collect()

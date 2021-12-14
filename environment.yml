@@ -13,10 +13,12 @@ dependencies:
   - conda-build
   - conda-pack
   - pandas
+  - keras
   - pip
   - pip:
     - -e .
     - warcio
+    - analytics-zoo
 
 # tests
   - pytest>=6.2.3

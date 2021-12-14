@@ -138,6 +138,10 @@ class CCSparkJob:
                 conf=conf
             )
         
+        if self.use_orca:
+            from zoo.orca import init_orca_context
+            sc = init_orca_context(cluster_mode='spark-submit')
+
         sqlc = SQLContext(sparkContext=sc)
 
         self.init_accumulators(sc)
@@ -170,22 +174,9 @@ class CCSparkJob:
 
         rdd = input_data.mapPartitions(self.process_warcs)
 
-        if self.limit:
-            output = rdd.take(self.limit)
-        else:
-            output = rdd.collect()
-
-        # sqlc.createDataFrame(output, schema=self.output_schema) \
-        #     .coalesce(self.num_output_partitions) \
-        #     .write \
-        #     .format(self.output_format) \
-        #     .option("compression", self.output_compression) \
-        #     .options(**self.get_output_options()) \
-        #     .saveAsTable(self.output)
-
         self.log_aggregators(sc)
 
-        return output
+        return self.process_dataset(rdd)
 
     def process_warcs(self, iterator):
         s3pattern = re.compile('^s3://([^/]+)/(.+)')
@@ -197,7 +188,7 @@ class CCSparkJob:
         s3client = boto3.client('s3', config=no_sign_request)
 
         for uri in iterator:
-            self.warc_input_processed.add(1)
+            self.warc_input_processed.add(rdd1)
             if not uri.startswith('s3://'):
                 raise ValueError('Cannot parse not S3 files with this implementation')
 
@@ -352,7 +343,7 @@ class CCIndexSparkJob(CCSparkJob):
 
         self.log_aggregators(sc)
 
-        return sqldf.toPandas()
+        return self.process_dataset(sqldf)
 
     def run(self, query):
         self.query = query
@@ -443,21 +434,11 @@ class CCIndexWarcSparkJob(CCIndexSparkJob):
         if num_warcs == 0:
             raise ValueError()
 
-        # TODO group records by warc file
         rdd = warc_recs.mapPartitions(self.fetch_process_warc_records)
-        # TODO optional take(self.limit)
-        output = rdd.collect()
 
         self.log_aggregators(sc)
 
-        return output
-        # sqlc.createDataFrame(output, schema=self.output_schema) \
-        #     .coalesce(self.num_output_partitions) \
-        #     .write \
-        #     .format(self.output_format) \
-        #     .option("compression", self.output_compression) \
-        #     .options(**self.get_output_options()) \
-        #     .saveAsTable(self.output)
+        return self.process_dataset(rdd)
 
     def run(self, query, url_only):
         self.url_only = url_only
