@@ -1,13 +1,15 @@
 __author__ = 'Lukas Gebhard <freerunningapps@gmail.com>'
 
 import doctest
+import os
 
-import pandas as pd
-import numpy as np
 from keras.engine.saving import load_model
 from keras.utils import np_utils
 from keras.preprocessing.text import tokenizer_from_json
 from keras.preprocessing import sequence
+import numpy as np
+import pandas as pd
+import pyspark.sql as psql
 from zoo.orca.learn.tf.estimator import Estimator
 
 
@@ -25,24 +27,35 @@ _NONPOLITICAL_ARTICLE = '''Table tennis world cup 2025 takes place in South Kore
                         '''to the advantage of underdog Bob Bobby who has been playing outstanding matches ''' \
                         '''in the National Table Tennis League this year.'''
 
-def spark_filter(df):
+def ensure_zip_exists():
+    # TODO cannot currently download straight from drive
+    this_dir_path = os.path.dirname(os.path.abspath(__file__))
+    if not os.path.exists(os.path.join(this_dir_path, 'pon_classifier.zip')):
+        raise FileNotFoundError(f"Please ensure the political news filter classifier archive is downloaded and in '{this_dir_path}'. The archive can be downloaded from 'https://drive.google.com/drive/folders/1kmFr3WYOa7bSQELvpMcY77wH4gzLe9cJ'")
 
+def preprocess(df):
+    '''
+    :param df:
+    '''
     PADDING_SIZE = 1500
     with open('./pon_classifier/tokenizer.json', 'r') as tokenizer_file:
             json = tokenizer_file.read()
 
     tokenizer = tokenizer_from_json(json)
-    tokens = tokenizer.texts_to_sequences(df)
-    tokens = pd.Series(list(sequence.pad_sequences(tokens, maxlen=PADDING_SIZE)), index=tokens.index)
+    # TODO check what words are missing from tokenizer
+    # for now we will assume vocab is good
+    texts = [text for text in df[0]]
+    tokens = tokenizer.texts_to_sequences(texts)
+    return sequence.pad_sequences(tokens, maxlen=PADDING_SIZE)
 
-def spark_evaluate(rdd):
+def spark_predict(df):
     BATCH_SIZE = 256
 
     model = load_model('./pon_classifier/model.h5')
     est = Estimator.from_keras(keras_model=model)
-    preds = est.predict(rdd, batch_size=BATCH_SIZE)
+    preds = est.predict(df, batch_size=BATCH_SIZE)
     #TODO convert to spark code
-    return preds[:, 1]
+    return preds
 
 def filter(news_articles, threshold=0.5):
     """

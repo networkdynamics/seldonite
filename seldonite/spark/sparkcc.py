@@ -75,7 +75,7 @@ class CCSparkJob:
         return spark_context._jvm.org.apache.log4j.LogManager \
             .getLogger(self.name)
 
-    def run(self, input_file_listing, url_only):
+    def run(self, input_file_listing, url_only, archives=[]):
         '''
         params:
         input_file_listing: Path to file listing input paths
@@ -83,6 +83,7 @@ class CCSparkJob:
 
         self.url_only = url_only
         self.input_file_listing = input_file_listing
+        self.archives = archives
         return self._run()
 
     def _run(self):
@@ -124,7 +125,13 @@ class CCSparkJob:
             this_dir_path = os.path.dirname(os.path.abspath(__file__))
             conda_package_path = os.path.join(this_dir_path, 'seldonite_spark_env.tar.gz')
             os.environ['PYSPARK_PYTHON'] = './environment/bin/python'
-            conf.set('spark.archives', f'{conda_package_path}#environment')
+            spark_archives = f'{conda_package_path}#environment'
+
+            for archive_path in self.archives:
+                dir_name = os.path.splitext(os.path.basename(archive_path))[0]
+                spark_archives += f",{archive_path}#{dir_name}"
+
+            conf.set('spark.archives', spark_archives)
 
             sc = SparkContext(
                 master=self.spark_master_url,
@@ -440,6 +447,7 @@ class CCIndexWarcSparkJob(CCIndexSparkJob):
 
         return self.process_dataset(rdd)
 
-    def run(self, query, url_only):
+    def run(self, query, url_only, archives=[]):
         self.url_only = url_only
+        self.archives = archives
         return super().run(query)
