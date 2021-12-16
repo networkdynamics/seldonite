@@ -13,10 +13,10 @@ class CCIndexFetchNewsJob(CCIndexWarcSparkJob, FetchNewsJob):
     records_parsing_failed = None
     records_non_html = None
         
-    def run(self, url_only=False, limit=None, keywords=[], sites=[], crawls=None, start_date=None, end_date=None):
+    def run(self, limit=None, keywords=[], sites=[], crawls=None, start_date=None, end_date=None, political_filter=False, **kwargs):
         query = utils.construct_query(sites, limit, crawls=crawls)
-        self.set_constraints(limit, keywords, sites, start_date, end_date)
-        return super().run(query, url_only)
+        self.set_constraints(limit, keywords, sites, start_date, end_date, political_filter)
+        return super().run(query, **kwargs)
 
     def init_accumulators(self, sc):
         super().init_accumulators(sc)

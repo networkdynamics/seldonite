@@ -24,7 +24,8 @@ Please see the wiki for more detail on sources and methods
 
 To install seldonite as editable, and dependencies via conda:
 ```
-conda env update -f ./environment.yml
+conda env create -f ./environment.yml
+pip install --no-deps -r ./no_deps_requirements.txt
 ```
 
 This library uses a variety of third party libraries, please see limited setup instructions below:

@@ -10,9 +10,9 @@ class FetchNewsJob(CCSparkJob):
 
     name = "FetchNewsJob"
 
-    def run(self, listing, url_only=False, limit=None, keywords=[], sites=[], start_date=None, end_date=None, political_filter=False):
+    def run(self, listing, limit=None, keywords=[], sites=[], start_date=None, end_date=None, political_filter=False, **kwargs):
         self.set_constraints(limit, keywords, sites, start_date, end_date, political_filter)
-        return super().run(listing, url_only)
+        return super().run(listing, **kwargs)
 
     def set_constraints(self, limit, keywords, sites, start_date, end_date, political_filter):
         self.limit = limit
@@ -21,6 +21,8 @@ class FetchNewsJob(CCSparkJob):
         self.start_date = start_date
         self.end_date = end_date
         self.political_filter = political_filter
+        if self.political_filter:
+            self.use_orca = True
 
     def process_record(self, record):
         if record.rec_type != 'response':
@@ -77,7 +79,9 @@ class FetchNewsJob(CCSparkJob):
             THRESHOLD = 0.5
             df = df.filter(df.prediction > THRESHOLD)
 
+        rdd = df.rdd.map(lambda row: {'title': row['title'], 'text': row['text'], 'url': row['url'], 'publish_date': row['publish_date']})
+
         if self.limit:
-            return df.take(self.limit)
+            return rdd.take(self.limit)
         else:
-            return df.collect()
+            return rdd.collect()

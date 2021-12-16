@@ -1,4 +1,5 @@
 import datetime
+import os
 
 from seldonite.helpers import heuristics, utils
 from seldonite.model import Article
@@ -31,6 +32,8 @@ class Source:
 
         self.start_date = None
         self.end_date = None
+
+        self.can_political_filter = False
 
     def set_date_range(self, start_date, end_date, strict=True):
         '''
@@ -90,6 +93,8 @@ class CommonCrawl(WebWideSource):
         self.can_keyword_filter = True
         # we apply newsplease heuristics in spark job
         self.news_only = True
+        self.can_political_filter = True
+        self.political_filter = False
 
     def set_crawls(self, crawl):
         if crawl == 'latest':
@@ -107,10 +112,18 @@ class CommonCrawl(WebWideSource):
         if self.crawls is None:
             raise ValueError('Set crawls either using `set_crawls` or `in_date_range`')
 
+        if self.political_filter:
+            this_dir_path = os.path.dirname(os.path.abspath(__file__))
+            political_classifier_path = os.path.join(this_dir_path, 'filters', 'pon_classifier.zip')
+            archives = [ political_classifier_path ]
+        else:
+            archives = []
+
         # create the spark job
         job = CCIndexFetchNewsJob(spark_master_url=self.spark_master_url)
         result = job.run(url_only=url_only, limit=max_articles, keywords=self.keywords, 
-                         sites=sites, crawls=self.crawls, start_date=self.start_date, end_date=self.end_date)
+                         sites=sites, crawls=self.crawls, start_date=self.start_date, end_date=self.end_date,
+                         political_filter=self.political_filter, archives=archives)
 
         if url_only:
             for url in result:
@@ -137,6 +150,8 @@ class NewsCrawl(WebWideSource):
 
         # we apply newsplease heuristics in spark job
         self.news_only = True
+        self.can_political_filter = True
+        self.political_filter = False
 
 
     def _fetch(self, sites, max_articles, url_only=False):

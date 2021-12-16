@@ -1,24 +1,23 @@
-name: seldonite_env
+name: seldonite
 channels:
   - conda-forge
 dependencies:
-  - python=3.8
+  - python=3.7
+  - conda-build
+  - conda-pack
   - newspaper3k
   - boto3
-  - pyspark
+  - pyspark>=3
   - selenium
   - spacy
   - gensim
   - google-api-python-client
-  - conda-build
-  - conda-pack
-  - pandas
+  - pandas==1.0.3
   - keras
+  - numpy==1.21.4
+  - six==1.16.0
+  - pytest
   - pip
   - pip:
     - -e .
     - warcio
-    - analytics-zoo
-
-# tests
-  - pytest>=6.2.3

@@ -10,7 +10,7 @@ from keras.preprocessing import sequence
 import numpy as np
 import pandas as pd
 import pyspark.sql as psql
-from zoo.orca.learn.tf.estimator import Estimator
+from bigdl.orca.learn.tf.estimator import Estimator
 
 
 _POLITICAL_ARTICLE = '''White House declares war against terror. The US government officially announced a ''' \

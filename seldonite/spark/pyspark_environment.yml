@@ -1,18 +1,16 @@
-name: seldonite_spark_env
+name: seldonite_spark
 channels:
   - conda-forge
 dependencies:
-  - python=3.8
+  - python=3.7
   - newspaper3k
   - boto3
-  - pyspark
-  - selenium
-  - spacy
-  - gensim
-  - google-api-python-client
+  - pyspark=3
   - conda-build
   - conda-pack
-  - pandas
+  - pandas==1.0.3
+  - numpy==1.21.4
+  - six==1.16.0
   - pip
   - pip:
     - ../../.

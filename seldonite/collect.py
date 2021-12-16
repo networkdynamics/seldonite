@@ -15,6 +15,7 @@ class Collector:
         self.url_only_val = False
         self.max_articles = None
         self.filter_political_articles = True
+        self.sites=[]
 
     def in_date_range(self, start_date, end_date):
         '''
@@ -35,12 +36,11 @@ class Collector:
 
         return self
 
-    def only_political_articles(self, threshold=0.6):
-        self.threshold = threshold
+    def only_political_articles(self):
         if self.source.can_political_filter:
-            self.source.only_political_articles(threshold)
+            self.source.political_filter = True
         else:
-            self.filter_political_articles = True
+            raise NotImplementedError('This source cannot filter only political articles, please try another source.')
 
         return self
 
@@ -66,9 +66,6 @@ class Collector:
 
         if self.keywords and not self.source.can_keyword_filter and not self.url_only_val:
             articles = (article for article in articles if filters.contains_keywords(article, self.keywords))
-
-        if self.filter_political_articles and not self.source.can_political_filter and not self.url_only_val:
-            articles = filters.political.filter([article ])
 
         return articles
 

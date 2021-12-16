@@ -1,21 +1,20 @@
+from io import BytesIO
 import json
 import logging
 import math
 import os
 import re
-
-from io import BytesIO
 from tempfile import TemporaryFile
 
 import boto3
 import botocore
-
-from warcio.archiveiterator import ArchiveIterator
-from warcio.recordloader import ArchiveLoadFailed
-
 from pyspark import SparkContext, SparkConf
 from pyspark.sql import SQLContext, SparkSession
-from pyspark.sql.types import StructType, StructField, StringType, LongType
+from pyspark.sql.types import StructType
+from warcio.archiveiterator import ArchiveIterator
+from warcio.recordloader import ArchiveLoadFailed
+from bigdl.orca import init_orca_context
+
 
 LOGGING_FORMAT = '%(asctime)s %(levelname)s %(name)s: %(message)s'
 
@@ -47,6 +46,8 @@ class CCSparkJob:
         self.spark_profiler = spark_profiler
         # address of spark master node
         self.spark_master_url = spark_master_url
+
+        self.use_bigdl = False
 
         logging.basicConfig(level=self.log_level, format=LOGGING_FORMAT)
 
@@ -145,8 +146,7 @@ class CCSparkJob:
                 conf=conf
             )
         
-        if self.use_orca:
-            from zoo.orca import init_orca_context
+        if self.use_bigdl:
             sc = init_orca_context(cluster_mode='spark-submit')
 
         sqlc = SQLContext(sparkContext=sc)
