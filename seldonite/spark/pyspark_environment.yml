@@ -15,6 +15,5 @@ dependencies:
   - pip:
     - ../../.
     - warcio
-
-# tests
-  - pytest>=6.2.3
+    - ray==1.2.0
+    - tensorflow>=2.1.0

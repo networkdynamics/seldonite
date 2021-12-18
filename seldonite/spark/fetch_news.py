@@ -1,3 +1,5 @@
+from collections import OrderedDict
+
 import pyspark.sql as psql
 
 from seldonite import filters
@@ -54,7 +56,8 @@ class FetchNewsJob(CCSparkJob):
         if not heuristics.og_type(article):
             return None
 
-        if (self.start_date and article.publish_date < self.start_date) or (self.end_date and article.publish_date > self.end_date):
+        publish_date = article.publish_date.date()
+        if (self.start_date and publish_date < self.start_date) or (self.end_date and publish_date > self.end_date):
             return None
 
         if self.keywords and not filters.contains_keywords(article, self.keywords):
@@ -62,16 +65,22 @@ class FetchNewsJob(CCSparkJob):
 
         return psql.Row(title=article.title, text=article.text, url=url, publish_date=article.publish_date)
 
+    def preprocess_text(self, iter):
+        return utils.map_col_with_index(iter, 'url', 'all_text', 'tokens', filters.political.preprocess)
 
     def process_dataset(self, rdd):
 
         df = rdd.toDF()
         if self.political_filter:
             # create concat of title and text
-            df = df.withColumn('all_text', psql.functions.concat(psql.functions.col('title'), psql.functions.lit(' '), psql.functions.col('text')))
+            df = df.withColumn('all_text', psql.functions.concat(df['title'], psql.functions.lit(' '), df['text']))
             # tokenize text
-            tokens_df = df.select('all_text').rdd.mapPartitions(filters.political.preprocess)
-            df = df.withColumn('tokens', tokens_df)
+            df.toPandas().to_csv('./articles.csv')
+            tokens_df = df.select('url', 'all_text') \
+                          .rdd \
+                          .mapPartitions(self.preprocess_text) \
+                          .toDF()
+            df = df.join(tokens_df, 'url')
             # get political predictions
             preds = filters.political.spark_predict(df.select('tokens'))
             df = df.withColumn('prediction', preds)

@@ -3,14 +3,13 @@ __author__ = 'Lukas Gebhard <freerunningapps@gmail.com>'
 import doctest
 import os
 
-from keras.engine.saving import load_model
-from keras.utils import np_utils
-from keras.preprocessing.text import tokenizer_from_json
-from keras.preprocessing import sequence
+from tensorflow.keras.models import load_model
+from tensorflow.keras.preprocessing.text import tokenizer_from_json
+from tensorflow.keras.preprocessing import sequence
 import numpy as np
 import pandas as pd
 import pyspark.sql as psql
-from bigdl.orca.learn.tf.estimator import Estimator
+from bigdl.orca.learn.tf2.estimator import Estimator
 
 
 _POLITICAL_ARTICLE = '''White House declares war against terror. The US government officially announced a ''' \
@@ -33,7 +32,7 @@ def ensure_zip_exists():
     if not os.path.exists(os.path.join(this_dir_path, 'pon_classifier.zip')):
         raise FileNotFoundError(f"Please ensure the political news filter classifier archive is downloaded and in '{this_dir_path}'. The archive can be downloaded from 'https://drive.google.com/drive/folders/1kmFr3WYOa7bSQELvpMcY77wH4gzLe9cJ'")
 
-def preprocess(df):
+def preprocess(texts):
     '''
     :param df:
     '''
@@ -44,7 +43,6 @@ def preprocess(df):
     tokenizer = tokenizer_from_json(json)
     # TODO check what words are missing from tokenizer
     # for now we will assume vocab is good
-    texts = [text for text in df[0]]
     tokens = tokenizer.texts_to_sequences(texts)
     return sequence.pad_sequences(tokens, maxlen=PADDING_SIZE)
 
@@ -102,10 +100,6 @@ class Classifier:
     @staticmethod
     def _as_array(tokens):
         return np.array(tokens.values.tolist())
-
-    @staticmethod
-    def _one_hot_encode(labels):
-        return np_utils.to_categorical(labels.values, num_classes=2)
 
     def estimate(self, news_articles):
         """

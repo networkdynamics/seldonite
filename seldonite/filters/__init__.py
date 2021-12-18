@@ -1,5 +1,5 @@
-import re
 from urllib.parse import urlparse
+from seldonite.filters import political
 
 def contains_keywords(article, keywords):
     if any(keyword in article.title for keyword in keywords):

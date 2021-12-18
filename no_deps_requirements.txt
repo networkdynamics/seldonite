@@ -1,6 +1,6 @@
 bigdl
 bigdl-nano
-bigdl-orca
+bigdl-orca[ray]
 bigdl-chronos
 bigdl-serving
 bigdl-friesian

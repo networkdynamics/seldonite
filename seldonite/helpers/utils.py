@@ -1,9 +1,11 @@
+import collections
 import datetime
 import gzip
 import re
 
 import botocore
 import boto3
+import pyspark.sql as psql
 import requests
 
 from seldonite.model import Article
@@ -145,3 +147,13 @@ def construct_query(sites, limit, crawls=None, type=None):
         query += f" LIMIT {str(limit)}"
 
     return query
+
+
+def map_col_with_index(iter, index_name, col_name, mapped_name, func):
+    col = [row[col_name] for row in iter]
+    mapped_col = func(col)
+    for row, mapped_item in zip(iter, mapped_col):
+        row_values = collections.OrderedDict()
+        row_values[index_name] = row[index_name]
+        row_values[mapped_name] = mapped_item
+        yield psql.Row(**row_values)

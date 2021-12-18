@@ -13,7 +13,6 @@ dependencies:
   - gensim
   - google-api-python-client
   - pandas==1.0.3
-  - keras
   - numpy==1.21.4
   - six==1.16.0
   - pytest
@@ -21,3 +20,5 @@ dependencies:
   - pip:
     - -e .
     - warcio
+    - ray==1.2.0
+    - tensorflow>=2.1.0
