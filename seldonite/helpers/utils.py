@@ -2,6 +2,7 @@ import collections
 import datetime
 import gzip
 import re
+import zipfile
 
 import botocore
 import boto3
@@ -149,11 +150,19 @@ def construct_query(sites, limit, crawls=None, type=None):
     return query
 
 
-def map_col_with_index(iter, index_name, col_name, mapped_name, func):
-    col = [row[col_name] for row in iter]
-    mapped_col = func(col)
-    for row, mapped_item in zip(iter, mapped_col):
+def map_col_with_index(iter, index_name, col_name, mapped_name, func, **kwargs):
+    index = []
+    col = []
+    for item in iter:
+        index.append(item[index_name])
+        col.append(item[col_name])
+    mapped_col = func(col, **kwargs)
+    for idx, mapped_item in zip(index, mapped_col):
         row_values = collections.OrderedDict()
-        row_values[index_name] = row[index_name]
+        row_values[index_name] = idx
         row_values[mapped_name] = mapped_item
         yield psql.Row(**row_values)
+
+def unzip(from_zip, to_path):
+    with zipfile.ZipFile(from_zip, 'r') as zip_ref:
+        zip_ref.extractall(to_path)

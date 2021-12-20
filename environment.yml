@@ -4,10 +4,10 @@ channels:
 dependencies:
   - python=3.7
   - conda-build
-  - conda-pack
+  - conda-pack==0.3.1
   - newspaper3k
   - boto3
-  - pyspark>=3
+  - pyspark==3.1.2
   - selenium
   - spacy
   - gensim
@@ -15,6 +15,7 @@ dependencies:
   - pandas==1.0.3
   - numpy==1.21.4
   - six==1.16.0
+  - py4j==0.10.9
   - pytest
   - pip
   - pip:
@@ -22,3 +23,5 @@ dependencies:
     - warcio
     - ray==1.2.0
     - tensorflow>=2.1.0
+    - https://downloads.sourceforge.net/project/analytics-zoo/orca-py-spark3/bigdl_orca_spark3-0.14.0b20211215-py3-none-manylinux1_x86_64.whl
+    - https://downloads.sourceforge.net/project/analytics-zoo/dllib-py-spark3/bigdl_dllib_spark3-0.14.0b20211215-py3-none-manylinux1_x86_64.whl

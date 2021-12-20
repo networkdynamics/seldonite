@@ -11,6 +11,7 @@ import pandas as pd
 import pyspark.sql as psql
 from bigdl.orca.learn.tf2.estimator import Estimator
 
+from seldonite.helpers import utils
 
 _POLITICAL_ARTICLE = '''White House declares war against terror. The US government officially announced a ''' \
                      '''large-scale military offensive against terrorism. Today, the Senate agreed to spend an ''' \
@@ -32,12 +33,22 @@ def ensure_zip_exists():
     if not os.path.exists(os.path.join(this_dir_path, 'pon_classifier.zip')):
         raise FileNotFoundError(f"Please ensure the political news filter classifier archive is downloaded and in '{this_dir_path}'. The archive can be downloaded from 'https://drive.google.com/drive/folders/1kmFr3WYOa7bSQELvpMcY77wH4gzLe9cJ'")
 
-def preprocess(texts):
+def unzip_model():
+    ensure_zip_exists()
+    this_dir_path = os.path.dirname(os.path.abspath(__file__))
+    model_dir_path = os.path.join(this_dir_path, 'pon_classifier')
+    model_path = os.path.join(model_dir_path, 'model.h5')
+    if not os.path.exists(model_path):
+        zip_path = os.path.join(this_dir_path, 'pon_classifier.zip')
+        utils.unzip(zip_path, model_dir_path)
+    return model_path
+
+def preprocess(texts, tokenizer_path=os.path.join('.', 'pon_classifier')):
     '''
     :param df:
     '''
     PADDING_SIZE = 1500
-    with open('./pon_classifier/tokenizer.json', 'r') as tokenizer_file:
+    with open(os.path.join(tokenizer_path, 'tokenizer.json'), 'r') as tokenizer_file:
             json = tokenizer_file.read()
 
     tokenizer = tokenizer_from_json(json)
@@ -46,14 +57,19 @@ def preprocess(texts):
     tokens = tokenizer.texts_to_sequences(texts)
     return sequence.pad_sequences(tokens, maxlen=PADDING_SIZE)
 
-def spark_predict(df):
+def spark_predict(df, feature_col, model_path=os.path.join('.', 'pon_classifier')):
     BATCH_SIZE = 256
 
-    model = load_model('./pon_classifier/model.h5')
-    est = Estimator.from_keras(keras_model=model)
-    preds = est.predict(df, batch_size=BATCH_SIZE)
-    #TODO convert to spark code
-    return preds
+    model_path = model_path
+    def model_creator(config):
+        model_path = os.path.join(model_path, 'model.h5')
+        if not os.path.exists(model_path):
+            model_path = unzip_model()
+
+        return load_model(model_path)
+
+    est = Estimator.from_keras(model_creator=model_creator)
+    return est.predict(df, feature_cols=[feature_col], batch_size=BATCH_SIZE)
 
 def filter(news_articles, threshold=0.5):
     """

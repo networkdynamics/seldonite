@@ -13,7 +13,7 @@ from pyspark.sql import SQLContext, SparkSession
 from pyspark.sql.types import StructType
 from warcio.archiveiterator import ArchiveIterator
 from warcio.recordloader import ArchiveLoadFailed
-from bigdl.orca import init_orca_context
+from bigdl.orca import init_orca_context, stop_orca_context
 
 
 LOGGING_FORMAT = '%(asctime)s %(levelname)s %(name)s: %(message)s'
@@ -88,39 +88,45 @@ class CCSparkJob:
         return self._run()
 
     def _run(self):
-        conf = SparkConf()
+        conf = {}
 
         if self.spark_profiler:
-            conf = conf.set("spark.python.profile", "true")
+            conf["spark.python.profile"] = "true"
 
         # add packages to allow pulling from AWS S3
-        conf.set('spark.jars.packages', 'org.apache.hadoop:hadoop-aws:3.2.0,com.amazonaws:aws-java-sdk:1.11.375')
+        conf['spark.jars.packages'] = 'org.apache.hadoop:hadoop-aws:3.2.0,com.amazonaws:aws-java-sdk:1.11.375'
 
         # anon creds for aws
-        conf.set('spark.hadoop.fs.s3a.aws.credentials.provider', 'org.apache.hadoop.fs.s3a.AnonymousAWSCredentialsProvider')
-        conf.set('spark.hadoop.fs.s3a.impl', 'org.apache.hadoop.fs.s3a.S3AFileSystem')
+        conf['spark.hadoop.fs.s3a.aws.credentials.provider'] = 'org.apache.hadoop.fs.s3a.AnonymousAWSCredentialsProvider'
+        conf['spark.hadoop.fs.s3a.impl'] = 'org.apache.hadoop.fs.s3a.S3AFileSystem'
+
+        conf['spark.app.name'] = self.name
 
         if self.spark_master_url:
 
             # set spark container image
-            conf.set('spark.kubernetes.container.image', 'datamechanics/spark:3.2.0-latest')
+            container_image = 'datamechanics/spark:3.2.0-latest'
+            conf['spark.kubernetes.container.image'] = container_image
 
             # allow spark worker scaling
             dynamic_scaling = False
             if dynamic_scaling:
-                conf.set('spark.dynamicAllocation.enabled', 'true')
-                conf.set('spark.dynamicAllocation.shuffleTracking.enabled', 'true')
-                conf.set("spark.dynamicAllocation.maxExecutors","5")
+                conf['spark.dynamicAllocation.enabled'] = 'true'
+                conf['spark.dynamicAllocation.shuffleTracking.enabled'] = 'true'
+                conf["spark.dynamicAllocation.maxExecutors"] = "5"
             else:
-                conf.set('spark.executor.instances', '1')
+                num_executors = 1
+                conf['spark.executor.instances'] = str(num_executors)
 
             # specify pod size
-            conf.set('spark.executor.cores', '32')
-            conf.set('spark.kubernetes.executor.request.cores', '28800m')
-            conf.set('spark.executor.memory', '450g')
+            executor_cores = 32
+            conf['spark.executor.cores'] = str(executor_cores)
+            conf['spark.kubernetes.executor.request.cores'] = '28800m'
+            executor_memory = '450g'
+            conf['spark.executor.memory'] = executor_memory
 
             # add labels to pods
-            conf.set('spark.kubernetes.executor.label.app', 'seldonite')
+            conf['spark.kubernetes.executor.label.app'] = 'seldonite'
 
             # allow python deps to be used
             this_dir_path = os.path.dirname(os.path.abspath(__file__))
@@ -132,35 +138,53 @@ class CCSparkJob:
                 dir_name = os.path.splitext(os.path.basename(archive_path))[0]
                 spark_archives += f",{archive_path}#{dir_name}"
 
-            conf.set('spark.archives', spark_archives)
+            conf['spark.archives'] = spark_archives
 
-            sc = SparkContext(
-                master=self.spark_master_url,
-                appName=self.name,
-                conf=conf
-            )
+            if self.use_bigdl:
+                sc = init_orca_context(cluster_mode='k8s-client',
+                                       num_nodes=num_executors,
+                                       cores=executor_cores,
+                                       memory=executor_memory,
+                                       master=self.spark_master_url, 
+                                       container_image=container_image,
+                                       spark_log_level="DEBUG",
+                                       conf=conf)
+            else:
+                spark_conf = SparkConf()
+                spark_conf.setAll(conf.items())
+                sc = SparkContext(
+                    master=self.spark_master_url,
+                    conf=spark_conf
+                )
         else:
             os.environ['PYSPARK_PYTHON'] = 'python'
-            sc = SparkContext(
-                appName=self.name,
-                conf=conf
-            )
-        
-        if self.use_bigdl:
-            sc = init_orca_context(cluster_mode='spark-submit')
+            if self.use_bigdl:
+                sc = init_orca_context(cluster_mode='local',
+                                       conf=conf)
+            else:
+                spark_conf = SparkConf()
+                spark_conf.setAll(conf.items())
+                sc = SparkContext(
+                    conf=spark_conf
+                )
 
-        sqlc = SQLContext(sparkContext=sc)
+        try:
+            sqlc = SQLContext(sparkContext=sc)
 
-        self.init_accumulators(sc)
+            self.init_accumulators(sc)
 
-        result = self.run_job(sc, sqlc)
+            result = self.run_job(sc, sqlc)
 
-        if self.spark_profiler:
-            sc.show_profiles()
+            if self.spark_profiler:
+                sc.show_profiles()
 
-        sc.stop()
+            return result
 
-        return result
+        finally:
+            if self.use_bigdl:
+                stop_orca_context()
+            else:
+                sc.stop()
 
     def log_aggregator(self, sc, agg, descr):
         self.get_logger(sc).info(descr.format(agg.value))
@@ -183,7 +207,7 @@ class CCSparkJob:
 
         self.log_aggregators(sc)
 
-        return self.process_dataset(rdd)
+        return self.process_dataset(sqlc, rdd)
 
     def process_warcs(self, iterator):
         s3pattern = re.compile('^s3://([^/]+)/(.+)')
@@ -195,7 +219,7 @@ class CCSparkJob:
         s3client = boto3.client('s3', config=no_sign_request)
 
         for uri in iterator:
-            self.warc_input_processed.add(rdd1)
+            self.warc_input_processed.add(1)
             if not uri.startswith('s3://'):
                 raise ValueError('Cannot parse not S3 files with this implementation')
 
@@ -324,8 +348,7 @@ class CCIndexSparkJob(CCSparkJob):
         sqldf.explain()
         return sqldf
 
-    def load_dataframe(self, sc, partitions=-1):
-        session = SparkSession.builder.config(conf=sc.getConf()).getOrCreate()
+    def load_dataframe(self, sc, session, partitions=-1):
         if self.query is not None:
             self.load_table(sc, session)
             sqldf = self.execute_query(sc, session, self.query)
@@ -346,7 +369,8 @@ class CCIndexSparkJob(CCSparkJob):
         return sqldf
 
     def run_job(self, sc, sqlc):
-        sqldf = self.load_dataframe(sc, self.num_input_partitions)
+        session = SparkSession.builder.config(conf=sc.getConf()).getOrCreate()
+        sqldf = self.load_dataframe(sc, session, self.num_input_partitions)
 
         self.log_aggregators(sc)
 
@@ -425,7 +449,8 @@ class CCIndexWarcSparkJob(CCIndexSparkJob):
                     .format(url, warc_path, offset, length, exception))
 
     def run_job(self, sc, sqlc):
-        sqldf = self.load_dataframe(sc, self.num_input_partitions)
+        session = SparkSession.builder.config(conf=sc.getConf()).getOrCreate()
+        sqldf = self.load_dataframe(sc, session, self.num_input_partitions)
 
         if self.url_only:
             columns = ['url']
@@ -445,7 +470,7 @@ class CCIndexWarcSparkJob(CCIndexSparkJob):
 
         self.log_aggregators(sc)
 
-        return self.process_dataset(rdd)
+        return self.process_dataset(session, rdd)
 
     def run(self, query, url_only, archives=[]):
         self.url_only = url_only

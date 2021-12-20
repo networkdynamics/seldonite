@@ -47,3 +47,13 @@ def test_get_news_crawl_listing_dates(start_date, end_date):
     assert len(paths) > 0
     assert all(path.startswith('s3://commoncrawl/crawl-data/') for path in paths)
     assert all(path.endswith('.warc.gz') for path in paths)
+
+def test_map_col_with_index():
+    data = [{'index': 0, 'col': 1}]
+    iter = (item for item in data)
+    def func(items):
+        return items
+    res_gen = utils.map_col_with_index(iter, 'index', 'col', 'new_col', func)
+    res = list(res_gen)
+    assert len(res) == len(data)
+

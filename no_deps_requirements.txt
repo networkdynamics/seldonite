@@ -1,7 +1,0 @@
-bigdl
-bigdl-nano
-bigdl-orca[ray]
-bigdl-chronos
-bigdl-serving
-bigdl-friesian
-bigdl-dllib

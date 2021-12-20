@@ -1,4 +1,4 @@
-from collections import OrderedDict
+import os
 
 import pyspark.sql as psql
 
@@ -24,7 +24,8 @@ class FetchNewsJob(CCSparkJob):
         self.end_date = end_date
         self.political_filter = political_filter
         if self.political_filter:
-            self.use_orca = True
+            self.political_filter_path = os.path.join('.', 'pon_classifier')
+            self.use_bigdl = True
 
     def process_record(self, record):
         if record.rec_type != 'response':
@@ -65,25 +66,33 @@ class FetchNewsJob(CCSparkJob):
 
         return psql.Row(title=article.title, text=article.text, url=url, publish_date=article.publish_date)
 
-    def preprocess_text(self, iter):
-        return utils.map_col_with_index(iter, 'url', 'all_text', 'tokens', filters.political.preprocess)
+    def preprocess_text_to_list(self, texts, **kwargs):
+        return (array.tolist() for array in filters.political.preprocess(texts, **kwargs))
 
-    def process_dataset(self, rdd):
+    def preprocess_text_partition(self, iter):
+        return utils.map_col_with_index(iter, 'url', 'all_text', 'tokens', self.preprocess_text_to_list, tokenizer_path=self.political_filter_path)
+
+    def preprocess_text(self, session, df):
+        tokens_rdd = df.rdd \
+                       .mapPartitions(self.preprocess_text_partition)
+        
+        schema = psql.types.StructType([
+            psql.types.StructField("url", psql.types.StringType(), True),
+            psql.types.StructField("tokens", psql.types.ArrayType(psql.types.IntegerType()), True)
+        ])
+        return session.createDataFrame(tokens_rdd, schema)
+
+    def process_dataset(self, session, rdd):
 
         df = rdd.toDF()
         if self.political_filter:
             # create concat of title and text
             df = df.withColumn('all_text', psql.functions.concat(df['title'], psql.functions.lit(' '), df['text']))
             # tokenize text
-            df.toPandas().to_csv('./articles.csv')
-            tokens_df = df.select('url', 'all_text') \
-                          .rdd \
-                          .mapPartitions(self.preprocess_text) \
-                          .toDF()
+            tokens_df = self.preprocess_text(session, df.select('url', 'all_text'))
             df = df.join(tokens_df, 'url')
             # get political predictions
-            preds = filters.political.spark_predict(df.select('tokens'))
-            df = df.withColumn('prediction', preds)
+            df = filters.political.spark_predict(df, 'tokens')
             # filter where prediction is higher than threshold
             THRESHOLD = 0.5
             df = df.filter(df.prediction > THRESHOLD)
