@@ -30,22 +30,16 @@ class Collector:
         '''
 
         self.keywords = keywords
-
-        if self.source.can_keyword_filter:
-            self.source.set_keywords(keywords)
+        self.source.set_keywords(keywords)
 
         return self
 
-    def only_political_articles(self):
-        if self.source.can_political_filter:
-            self.source.political_filter = True
-        else:
-            raise NotImplementedError('This source cannot filter only political articles, please try another source.')
-
+    def only_political_articles(self, threshold=0.5):
+        self.source.set_political_filter(threshold)
         return self
 
     def on_sites(self, sites):
-        self.sites = sites
+        self.source.set_sites(sites)
         return self
 
     def limit_num_articles(self, limit):
@@ -54,6 +48,14 @@ class Collector:
 
     def url_only(self, set=True):
         self.url_only_val = set
+        return self
+
+    def in_language(self, lang='eng'):
+        self.source.set_language(lang)
+        return self
+
+    def exclude_in_path(self, paths_sections):
+        self.source.set_path_black_list(paths_sections)
         return self
 
     # TODO split arguments into methods
@@ -68,6 +70,10 @@ class Collector:
             articles = (article for article in articles if filters.contains_keywords(article, self.keywords))
 
         return articles
+
+
+    def send_to_database(self, database, table):
+        self.source.send_to_database(database, table)
 
 
     def find_topics(self, batch_size=1000):

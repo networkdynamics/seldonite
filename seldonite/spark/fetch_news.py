@@ -13,13 +13,13 @@ class FetchNewsJob(CCSparkJob):
     name = "FetchNewsJob"
 
     def run(self, listing, limit=None, keywords=[], sites=[], start_date=None, end_date=None, political_filter=False, **kwargs):
-        self.set_constraints(limit, keywords, sites, start_date, end_date, political_filter)
+        self.set_constraints(keywords, start_date, end_date, political_filter)
+        self.limit = limit
+        self.sites = sites
         return super().run(listing, **kwargs)
 
-    def set_constraints(self, limit, keywords, sites, start_date, end_date, political_filter):
-        self.limit = limit
+    def set_constraints(self, keywords, start_date, end_date, political_filter):
         self.keywords = keywords
-        self.sites = sites
         self.start_date = start_date
         self.end_date = end_date
         self.political_filter = political_filter
@@ -33,8 +33,6 @@ class FetchNewsJob(CCSparkJob):
             return None
         if not self.is_html(record):
             return None
-        
-        # TODO filter by language
 
         url = record.rec_headers.get_header('WARC-Target-URI')
 
@@ -92,14 +90,9 @@ class FetchNewsJob(CCSparkJob):
             tokens_df = self.preprocess_text(session, df.select('url', 'all_text'))
             df = df.join(tokens_df, 'url')
             # get political predictions
-            df = filters.political.spark_predict(df, 'tokens')
+            df = filters.political.spark_predict(df, 'tokens', 'pred')
             # filter where prediction is higher than threshold
             THRESHOLD = 0.5
-            df = df.filter(df.prediction > THRESHOLD)
+            df = df.filter(df.pred > THRESHOLD)
 
-        rdd = df.rdd.map(lambda row: {'title': row['title'], 'text': row['text'], 'url': row['url'], 'publish_date': row['publish_date']})
-
-        if self.limit:
-            return rdd.take(self.limit)
-        else:
-            return rdd.collect()
+        return df

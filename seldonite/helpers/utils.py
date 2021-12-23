@@ -121,7 +121,7 @@ def get_cc_crawls_since(date):
 
     return crawl_ids
 
-def construct_query(sites, limit, crawls=None, type=None):
+def construct_query(sites, limit, crawls=None, lang='eng', path_black_list=[]):
     #TODO automatically get most recent crawl
     query = "SELECT url, warc_filename, warc_record_offset, warc_record_length, content_charset FROM ccindex WHERE subset = 'warc'"
 
@@ -141,7 +141,13 @@ def construct_query(sites, limit, crawls=None, type=None):
         site_list = ', '.join([f"'{site}'" for site in sites])
         query += f" AND url_host_registered_domain IN ({site_list})"
 
-    # TODO Language filter
+    # Language filter
+    if lang:
+        query += f" AND (content_languages IS NULL OR (content_languages IS NOT NULL AND content_languages LIKE '%{lang}%'))"
+
+    if path_black_list:
+        clause = " OR ".join((f"url_path LIKE '%{path_element}%'" for path_element in path_black_list))
+        query += f" AND NOT ({clause})"
 
     # set limit to sites if needed
     if limit:
@@ -162,6 +168,7 @@ def map_col_with_index(iter, index_name, col_name, mapped_name, func, **kwargs):
         row_values[index_name] = idx
         row_values[mapped_name] = mapped_item
         yield psql.Row(**row_values)
+
 
 def unzip(from_zip, to_path):
     with zipfile.ZipFile(from_zip, 'r') as zip_ref:

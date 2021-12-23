@@ -93,8 +93,16 @@ class CCSparkJob:
         if self.spark_profiler:
             conf["spark.python.profile"] = "true"
 
+        "spark.mongodb.input.uri", "mongodb://localhost:27017") \
+    .config("spark.mongodb.output.uri", "mongodb://localhost:27017") \
+
         # add packages to allow pulling from AWS S3
-        conf['spark.jars.packages'] = 'org.apache.hadoop:hadoop-aws:3.2.0,com.amazonaws:aws-java-sdk:1.11.375'
+        packages = [
+            'com.amazonaws:aws-java-sdk-bundle:1.11.375',
+            'org.apache.hadoop:hadoop-aws:3.2.0',
+            'org.mongodb.spark:mongo-spark-connector_2.12:3.0.1'
+        ]
+        conf['spark.jars.packages'] = ','.join(packages)
 
         # anon creds for aws
         conf['spark.hadoop.fs.s3a.aws.credentials.provider'] = 'org.apache.hadoop.fs.s3a.AnonymousAWSCredentialsProvider'
@@ -105,7 +113,7 @@ class CCSparkJob:
         if self.spark_master_url:
 
             # set spark container image
-            container_image = 'datamechanics/spark:3.2.0-latest'
+            container_image = 'bigdl-k8s-spark-3.1.2-hadoop-3.2.0:latest'
             conf['spark.kubernetes.container.image'] = container_image
 
             # allow spark worker scaling
@@ -131,7 +139,8 @@ class CCSparkJob:
             # allow python deps to be used
             this_dir_path = os.path.dirname(os.path.abspath(__file__))
             conda_package_path = os.path.join(this_dir_path, 'seldonite_spark_env.tar.gz')
-            os.environ['PYSPARK_PYTHON'] = './environment/bin/python'
+            os.environ['PYSPARK_PYTHON'] = '/opt/spark/work-dir/environment/bin/python'
+            os.environ['BIGDL_CLASSPATH'] = '/opt/spark/work-dir/environment/lib/python3.7/site-packages/bigdl/share/dllib/lib/bigdl-dllib-spark_3.1.2-0.14.0-SNAPSHOT-jar-with-dependencies.jar:/opt/spark/work-dir/environment/lib/python3.7/site-packages/bigdl/share/orca/lib/bigdl-orca-spark_3.1.2-0.14.0-SNAPSHOT-jar-with-dependencies.jar'
             spark_archives = f'{conda_package_path}#environment'
 
             for archive_path in self.archives:
@@ -147,7 +156,6 @@ class CCSparkJob:
                                        memory=executor_memory,
                                        master=self.spark_master_url, 
                                        container_image=container_image,
-                                       spark_log_level="DEBUG",
                                        conf=conf)
             else:
                 spark_conf = SparkConf()
@@ -183,6 +191,7 @@ class CCSparkJob:
         finally:
             if self.use_bigdl:
                 stop_orca_context()
+                #pass
             else:
                 sc.stop()
 
@@ -320,7 +329,7 @@ class CCIndexSparkJob(CCSparkJob):
     # description of input and output shown in --help
     input_descr = "Path to Common Crawl index table"
 
-    def __init__(self, table_path='s3a://commoncrawl/cc-index/table/cc-main/warc/', table_name='ccindex', query="SELECT url, warc_filename, warc_record_offset, warc_record_length, content_charset FROM ccindex WHERE crawl = 'CC-MAIN-2020-24' AND subset = 'warc' LIMIT 10", **kwargs):
+    def __init__(self, table_path='s3a://commoncrawl/cc-index/table/cc-main/warc/', table_name='ccindex', query=None, **kwargs):
         super().__init__(**kwargs)
         # Name of the table data is loaded into
         self.table_name = table_name
@@ -376,8 +385,9 @@ class CCIndexSparkJob(CCSparkJob):
 
         return self.process_dataset(sqldf)
 
-    def run(self, query):
-        self.query = query
+    def run(self):
+        if self.query is None:
+            raise ValueError('Please ensure query is set before running job.')
         return self._run()
 
 
@@ -455,7 +465,7 @@ class CCIndexWarcSparkJob(CCIndexSparkJob):
         if self.url_only:
             columns = ['url']
             warc_recs = sqldf.select(*columns).rdd
-            return warc_recs.flatMap(lambda x: x).collect()
+            return warc_recs.flatMap(lambda x: x)
         else:
             columns = ['url', 'warc_filename', 'warc_record_offset', 'warc_record_length']
             if 'content_charset' in sqldf.columns:
@@ -472,7 +482,7 @@ class CCIndexWarcSparkJob(CCIndexSparkJob):
 
         return self.process_dataset(session, rdd)
 
-    def run(self, query, url_only, archives=[]):
+    def run(self, url_only, archives=[]):
         self.url_only = url_only
         self.archives = archives
-        return super().run(query)
+        return super().run()

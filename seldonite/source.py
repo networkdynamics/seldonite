@@ -34,6 +34,8 @@ class Source:
         self.end_date = None
 
         self.can_political_filter = False
+        self.can_lang_filter = True
+        self.can_path_black_list = True
 
     def set_date_range(self, start_date, end_date, strict=True):
         '''
@@ -46,12 +48,40 @@ class Source:
         self.end_date = end_date
         self.strict = strict
 
+    def set_political_filter(self, threshold):
+        if self.can_political_filter:
+            self.political_filter = True
+            self.political_filter_threshold = threshold
+        else:
+            raise NotImplementedError('This source cannot filter only political articles, please try another source.')
+
+    def set_language(self, language):
+        if self.can_lang_filter:
+            self.lang = language
+        else:
+            raise NotImplementedError('This source cannot filter language, please try another source.')
+
+    def set_path_blacklist(self, path_black_list):
+        if self.can_path_black_list:
+            self.path_black_list = path_black_list
+        else:
+            raise NotImplementedError('This source cannot blacklist paths, please try another source.')
+
+    def set_keywords(self, keywords):
+        if self.can_keyword_filter:
+            self.keywords = keywords
+        else:
+            raise NotImplemented('This source cannot filter by keywords, please try another source.')
+
+    def set_sites(self, sites):
+        self.sites = sites
+
     def fetch(self, sites, max_articles, url_only, disable_news_heuristics=False):
         '''
         params:
         sites: If None or empty list, any site is OK. Example: ['cbc.ca']
         '''
-        articles = self._fetch(sites, max_articles, url_only=url_only)
+        articles = self._fetch(max_articles, url_only=url_only)
 
         if disable_news_heuristics or self.news_only:
             for article in articles:
@@ -63,6 +93,9 @@ class Source:
                 yield article
 
     def _fetch(self):
+        raise NotImplementedError()
+
+    def send_to_database(self, database, table):
         raise NotImplementedError()
 
 class WebWideSource(Source):
@@ -95,6 +128,10 @@ class CommonCrawl(WebWideSource):
         self.news_only = True
         self.can_political_filter = True
         self.political_filter = False
+        self.can_lang_filter = True
+        self.lang = None
+        self.can_path_black_list = True
+        self.path_black_list = []
 
     def set_crawls(self, crawl):
         if crawl == 'latest':
@@ -104,7 +141,7 @@ class CommonCrawl(WebWideSource):
         else:
             self.crawls = [ crawl ]
 
-    def _fetch(self, sites, max_articles, url_only=False):
+    def _fetch(self, max_articles, url_only=False):
         # only need to look at crawls that are after the start_date of the search
         if self.start_date is not None:
             self.crawls = utils.get_cc_crawls_since(self.start_date)
@@ -121,16 +158,21 @@ class CommonCrawl(WebWideSource):
 
         # create the spark job
         job = CCIndexFetchNewsJob(spark_master_url=self.spark_master_url)
-        result = job.run(url_only=url_only, limit=max_articles, keywords=self.keywords, 
-                         sites=sites, crawls=self.crawls, start_date=self.start_date, end_date=self.end_date,
-                         political_filter=self.political_filter, archives=archives)
+        job.set_query_options(sites=self.sites, crawls=self.crawls, lang=self.lang, limit=max_articles, path_black_list=self.path_black_list)
+        df = job.run(url_only=url_only, keywords=self.keywords, 
+                     start_date=self.start_date, end_date=self.end_date,
+                     political_filter=self.political_filter, archives=archives)
 
+        result 
         if url_only:
             for url in result:
                 yield Article(url, init=False)
         else:
             for article_dict in result:
                 yield utils.dict_to_article(article_dict)
+
+    def send_to_database(self, database, table):
+        
 
     def query_index(self, query):
         job = QueryIndexJob(spark_master_url=self.spark_master_url)
@@ -154,20 +196,26 @@ class NewsCrawl(WebWideSource):
         self.political_filter = False
 
 
-    def _fetch(self, sites, max_articles, url_only=False):
+    def _fetch(self, max_articles, url_only=False):
 
         # get wet file listings from common crawl
         listings = utils.get_news_crawl_listing(start_date=self.start_date, end_date=self.end_date)
 
         # create the spark job
         job = FetchNewsJob(spark_master_url=self.spark_master_url)
-        result = job.run(listings, url_only=url_only, keywords=self.keywords, limit=max_articles, sites=sites)
+        df = job.run(listings, url_only=url_only, keywords=self.keywords, limit=max_articles, sites=self.sites)
 
+        rdd = df.rdd.map(lambda row: {'title': row['title'], 'text': row['text'], 'url': row['url'], 'publish_date': row['publish_date']})
+
+        if max_articles:
+            articles = rdd.take(self.limit)
+        else:
+            articles = rdd.collect()
         if url_only:
-            for url in result:
+            for url in articles:
                 yield Article(url, init=False)
         else:
-            for article_dict in result:
+            for article_dict in articles:
                 yield utils.dict_to_article(article_dict)
 
 class SearchEngineSource(WebWideSource):
@@ -191,7 +239,7 @@ class Google(SearchEngineSource):
         self.dev_key = dev_key
         self.engine_id = engine_id
 
-    def _fetch(self, sites, max_articles, url_only=False):
+    def _fetch(self, max_articles, url_only=False):
 
         service = gbuild("customsearch", "v1",
             developerKey=self.dev_key)
@@ -200,8 +248,8 @@ class Google(SearchEngineSource):
         query = ' '.join(self.keywords)
 
         # add sites
-        if sites:
-            query += " " + " OR ".join([f"site:{site}" for site in sites])
+        if self.sites:
+            query += " " + " OR ".join([f"site:{site}" for site in self.sites])
 
         if self.start_date:
             pre_start_date = self.start_date - datetime.timedelta(days=1)

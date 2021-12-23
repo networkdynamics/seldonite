@@ -57,19 +57,33 @@ def preprocess(texts, tokenizer_path=os.path.join('.', 'pon_classifier')):
     tokens = tokenizer.texts_to_sequences(texts)
     return sequence.pad_sequences(tokens, maxlen=PADDING_SIZE)
 
-def spark_predict(df, feature_col, model_path=os.path.join('.', 'pon_classifier')):
+def spark_predict(df, feature_col, pred_col):
+    '''
+
+    '''
     BATCH_SIZE = 256
 
-    model_path = model_path
     def model_creator(config):
+        model_path = os.path.join('.', 'pon_classifier')
         model_path = os.path.join(model_path, 'model.h5')
         if not os.path.exists(model_path):
             model_path = unzip_model()
 
         return load_model(model_path)
 
-    est = Estimator.from_keras(model_creator=model_creator)
-    return est.predict(df, feature_cols=[feature_col], batch_size=BATCH_SIZE)
+    # TODO switch to tf2 backend
+    est = Estimator.from_keras(model_creator=model_creator, backend='spark', model_dir='./')
+    df = est.predict(df, feature_cols=[feature_col], batch_size=BATCH_SIZE)
+
+    # extract single prediction value from prediction vector
+    def _ith(v, i):
+        try:
+            return float(v[i])
+        except ValueError:
+            return None
+
+    ith = psql.functions.udf(_ith, psql.types.DoubleType())
+    return df.withColumn(pred_col, ith('prediction', psql.functions.lit(1)))
 
 def filter(news_articles, threshold=0.5):
     """
