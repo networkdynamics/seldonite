@@ -207,11 +207,12 @@ class NewsCrawl(WebWideSource):
 
         rdd = df.rdd.map(lambda row: {'title': row['title'], 'text': row['text'], 'url': row['url'], 'publish_date': row['publish_date']})
 
-        if max_articles:
-            articles = rdd.take(self.limit)
-        else:
-            articles = rdd.collect()
+        
         if url_only:
+            if max_articles:
+                articles = rdd.take(self.limit)
+            else:
+                articles = rdd.collect()
             for url in articles:
                 yield Article(url, init=False)
         else:
