@@ -1,7 +1,12 @@
-from seldonite import filters
-from seldonite.helpers import preprocess
+import os
 
 from gensim import models, corpora
+import pyspark.sql as psql
+
+from seldonite import filters
+from seldonite.helpers import preprocess
+from seldonite.spark import spark_tools
+
 
 class Collector:
     '''
@@ -9,8 +14,10 @@ class Collector:
 
     Can use a variety of search methods
     '''
-    def __init__(self, source):
+    def __init__(self, source, master_url=None):
         self.source = source
+        self.spark_master_url = master_url
+
         self.keywords = None
         self.url_only_val = False
         self.max_articles = None
@@ -35,7 +42,8 @@ class Collector:
         return self
 
     def only_political_articles(self, threshold=0.5):
-        self.source.set_political_filter(threshold)
+        self.political_filter = True
+        self.political_filter_threshold = threshold
         return self
 
     def on_sites(self, sites):
@@ -59,21 +67,61 @@ class Collector:
         return self
 
     # TODO split arguments into methods
-    def fetch(self, disable_news_heuristics=False):
+    def fetch(self):
         '''
         'url_only' will mean no checking for articles
         '''
 
-        articles = self.source.fetch(self.sites, self.max_articles, self.url_only_val, disable_news_heuristics=disable_news_heuristics)
+        spark_builder = self._get_spark_builder()
+        with spark_builder.start_session() as spark_manager:
+            df = self._fetch(spark_manager)
+            df = df.toPandas()
 
-        if self.keywords and not self.source.can_keyword_filter and not self.url_only_val:
-            articles = (article for article in articles if filters.contains_keywords(article, self.keywords))
+        return df
 
-        return articles
+    def _get_spark_builder(self):
+        use_bigdl = self.political_filter
+        if self.political_filter:
+            this_dir_path = os.path.dirname(os.path.abspath(__file__))
+            political_classifier_path = os.path.join(this_dir_path, 'filters', 'pon_classifier.zip')
+            archives = [ political_classifier_path ]
+        else:
+            archives = []
+
+        spark_builder = spark_tools.SparkBuilder(self.spark_master_url, use_bigdl=use_bigdl, archives=archives)
+
+        return spark_builder
+
+    def _fetch(self, spark_manager):
+        df  = self.source.fetch(spark_manager, self.sites, self.max_articles, self.url_only_val)
+
+        spark_session = spark_manager.get_spark_session()
+        if self.political_filter:
+            # create concat of title and text
+            df = df.withColumn('all_text', psql.functions.concat(df['title'], psql.functions.lit(' '), df['text']))
+            # tokenize text
+            tokens_df = filters.political.preprocess_text(spark_session, df.select('url', 'all_text'))
+            df = df.join(tokens_df, 'url')
+            # get political predictions
+            df = filters.political.spark_predict(df, 'tokens', 'pred')
+            # filter where prediction is higher than threshold
+            THRESHOLD = 0.5
+            df = df.filter(df.pred > THRESHOLD)
+
+        return df.limit(self.limit)
 
 
-    def send_to_database(self, database, table):
-        self.source.send_to_database(database, table)
+    def send_to_database(self, connection_string, table):
+        spark_builder = self._get_spark_builder()
+        spark_builder.set_output_database(connection_string)
+        with spark_builder.start_session() as spark_manager:
+            df = self._fetch(spark_manager)
+            df.write \
+                .format("mongo") \
+                .mode("append") \
+                .option("database", database) \
+                .option("collection", table) \
+                .save()
 
 
     def find_topics(self, batch_size=1000):

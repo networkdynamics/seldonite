@@ -2,8 +2,8 @@
 import pyspark.sql as psql
 
 from seldonite import filters
-from seldonite.spark.sparkcc import CCIndexWarcSparkJob
-from seldonite.spark.fetch_news import FetchNewsJob
+from seldonite.commoncrawl.sparkcc import CCIndexWarcSparkJob
+from seldonite.commoncrawl.fetch_news import FetchNewsJob
 from seldonite.helpers import heuristics, utils
 
 
@@ -16,22 +16,24 @@ class CCIndexFetchNewsJob(CCIndexWarcSparkJob, FetchNewsJob):
     records_parsing_failed = None
     records_non_html = None
         
-    def run(self, keywords=[], sites=[], start_date=None, end_date=None, political_filter=False, **kwargs):
-        self.set_constraints(keywords, sites, start_date, end_date, political_filter)
+    def run(self, keywords=[], sites=[], start_date=None, end_date=None, **kwargs):
+        self.set_constraints(keywords, sites, start_date, end_date)
         return super().run(**kwargs)
 
     def set_query_options(self, sites=[], crawls=[], lang=None, limit=None, path_black_list=[]):
         self.query = utils.construct_query(sites, limit, crawls=crawls, lang=lang, path_black_list=path_black_list)
 
-    def init_accumulators(self, sc):
-        super().init_accumulators(sc)
+    def init_accumulators(self):
+        super().init_accumulators()
 
+        sc = self.spark_manager.get_spark_context()
         self.records_parsing_failed = sc.accumulator(0)
         self.records_non_html = sc.accumulator(0)
 
-    def log_aggregators(self, sc):
-        super().log_aggregators(sc)
+    def log_aggregators(self):
+        super().log_aggregators()
 
+        sc = self.spark_manager.get_spark_context()
         self.log_aggregator(sc, self.records_parsing_failed,
                             'records failed to parse = {}')
         self.log_aggregator(sc, self.records_non_html,

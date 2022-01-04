@@ -1,11 +1,12 @@
 import datetime
 import os
 
-from seldonite.helpers import heuristics, utils
+from seldonite.commoncrawl.cc_index_fetch_news import CCIndexFetchNewsJob
+from seldonite.commoncrawl.fetch_news import FetchNewsJob
+from seldonite.commoncrawl.query_index import QueryIndexJob
+from seldonite.helpers import utils
 from seldonite.model import Article
-from seldonite.spark.cc_index_fetch_news import CCIndexFetchNewsJob
-from seldonite.spark.fetch_news import FetchNewsJob
-from seldonite.spark.query_index import QueryIndexJob
+from seldonite.spark import spark_tools
 
 from googleapiclient.discovery import build as gbuild
 from selenium import webdriver
@@ -33,7 +34,6 @@ class Source:
         self.start_date = None
         self.end_date = None
 
-        self.can_political_filter = False
         self.can_lang_filter = True
         self.can_path_black_list = True
 
@@ -47,13 +47,6 @@ class Source:
         self.start_date = start_date
         self.end_date = end_date
         self.strict = strict
-
-    def set_political_filter(self, threshold):
-        if self.can_political_filter:
-            self.political_filter = True
-            self.political_filter_threshold = threshold
-        else:
-            raise NotImplementedError('This source cannot filter only political articles, please try another source.')
 
     def set_language(self, language):
         if self.can_lang_filter:
@@ -76,26 +69,7 @@ class Source:
     def set_sites(self, sites):
         self.sites = sites
 
-    def fetch(self, sites, max_articles, url_only, disable_news_heuristics=False):
-        '''
-        params:
-        sites: If None or empty list, any site is OK. Example: ['cbc.ca']
-        '''
-        articles = self._fetch(max_articles, url_only=url_only)
-
-        if disable_news_heuristics or self.news_only:
-            for article in articles:
-                yield article
-
-        for article in articles:
-            # apply newsplease heuristics to get only articles
-            if heuristics.og_type(article):
-                yield article
-
-    def _fetch(self):
-        raise NotImplementedError()
-
-    def send_to_database(self, database, table):
+    def fetch(self):
         raise NotImplementedError()
 
 class WebWideSource(Source):
@@ -116,18 +90,15 @@ class CommonCrawl(WebWideSource):
     Source that uses Spark to search CommonCrawl
     '''
 
-    def __init__(self, master_url=None):
+    def __init__(self):
         '''
         params:
         '''
         super().__init__()
 
-        self.spark_master_url = master_url
         self.can_keyword_filter = True
         # we apply newsplease heuristics in spark job
         self.news_only = True
-        self.can_political_filter = True
-        self.political_filter = False
         self.can_lang_filter = True
         self.lang = None
         self.can_path_black_list = True
@@ -141,7 +112,7 @@ class CommonCrawl(WebWideSource):
         else:
             self.crawls = [ crawl ]
 
-    def _fetch(self, max_articles, url_only=False):
+    def fetch(self, max_articles, url_only=False):
         # only need to look at crawls that are after the start_date of the search
         if self.start_date is not None:
             self.crawls = utils.get_cc_crawls_since(self.start_date)
@@ -149,41 +120,26 @@ class CommonCrawl(WebWideSource):
         if self.crawls is None:
             raise ValueError('Set crawls either using `set_crawls` or `in_date_range`')
 
-        if self.political_filter:
-            this_dir_path = os.path.dirname(os.path.abspath(__file__))
-            political_classifier_path = os.path.join(this_dir_path, 'filters', 'pon_classifier.zip')
-            archives = [ political_classifier_path ]
-        else:
-            archives = []
-
         # create the spark job
-        job = CCIndexFetchNewsJob(spark_master_url=self.spark_master_url)
+        job = CCIndexFetchNewsJob()
         job.set_query_options(sites=self.sites, crawls=self.crawls, lang=self.lang, limit=max_articles, path_black_list=self.path_black_list)
-        df = job.run(url_only=url_only, keywords=self.keywords, 
-                     start_date=self.start_date, end_date=self.end_date,
-                     political_filter=self.political_filter, archives=archives)
-
-        result 
-        if url_only:
-            for url in result:
-                yield Article(url, init=False)
-        else:
-            for article_dict in result:
-                yield utils.dict_to_article(article_dict)
-
-    def send_to_database(self, database, table):
+        return job.run(url_only=url_only, keywords=self.keywords, 
+                       start_date=self.start_date, end_date=self.end_date)
         
 
-    def query_index(self, query):
-        job = QueryIndexJob(spark_master_url=self.spark_master_url)
-        return job.run(query)
+    def query_index(self, spark_master_url, query):
+        spark_builder = spark_tools.SparkBuilder(spark_master_url)
+
+        with spark_builder.start_session() as spark_manager:
+            job = QueryIndexJob()
+            return job.run(query).toPandas()
 
 class NewsCrawl(WebWideSource):
     '''
     Source that uses Spark to search CommonCrawl's NewsCrawl dataset
     '''
 
-    def __init__(self, master_url=None, crawl='latest'):
+    def __init__(self):
         '''
         params:
         '''
@@ -196,28 +152,14 @@ class NewsCrawl(WebWideSource):
         self.political_filter = False
 
 
-    def _fetch(self, max_articles, url_only=False):
+    def fetch(self, max_articles, url_only=False):
 
         # get wet file listings from common crawl
         listings = utils.get_news_crawl_listing(start_date=self.start_date, end_date=self.end_date)
 
         # create the spark job
-        job = FetchNewsJob(spark_master_url=self.spark_master_url)
-        df = job.run(listings, url_only=url_only, keywords=self.keywords, limit=max_articles, sites=self.sites)
-
-        rdd = df.rdd.map(lambda row: {'title': row['title'], 'text': row['text'], 'url': row['url'], 'publish_date': row['publish_date']})
-
-        
-        if url_only:
-            if max_articles:
-                articles = rdd.take(self.limit)
-            else:
-                articles = rdd.collect()
-            for url in articles:
-                yield Article(url, init=False)
-        else:
-            for article_dict in articles:
-                yield utils.dict_to_article(article_dict)
+        job = FetchNewsJob()
+        return job.run(listings, url_only=url_only, keywords=self.keywords, limit=max_articles, sites=self.sites)
 
 class SearchEngineSource(WebWideSource):
 
@@ -226,8 +168,6 @@ class SearchEngineSource(WebWideSource):
         super().__init__()
 
         self.can_keyword_filter = True
-
-        
 
 class Google(SearchEngineSource):
     '''
@@ -240,8 +180,8 @@ class Google(SearchEngineSource):
         self.dev_key = dev_key
         self.engine_id = engine_id
 
-    def _fetch(self, max_articles, url_only=False):
-
+    def fetch(self, max_articles, url_only=False):
+        raise NotImplementedError()
         service = gbuild("customsearch", "v1",
             developerKey=self.dev_key)
 
@@ -288,6 +228,7 @@ class Google(SearchEngineSource):
 
             for item in items:
                 link = item['link']
+                # TODO convert for spark
                 if url_only:
                     yield Article(link, init=False)
                 else:
@@ -308,8 +249,8 @@ class Eureka(SearchEngineSource):
 
         self.show_browser = show_browser
 
-    def _fetch(self, only_url=False):
-
+    def fetch(self, only_url=False):
+        raise NotImplementedError()
         if only_url:
             raise ValueError('Eureka is unable to fetch article URLs.')
 
@@ -411,6 +352,7 @@ class Eureka(SearchEngineSource):
 
                 article = utils.html_to_article(driver.current_url, driver.page_source, title=article_title)
 
+                # TODO convert to spark dataframe
                 yield article
 
                 next_doc_button = driver.find_element_by_id('nextDoc')
@@ -419,7 +361,3 @@ class Eureka(SearchEngineSource):
 
                 next_doc_button.click()
 
-
-class Bing(SearchEngineSource):
-    def __init__(self):
-        raise NotImplementedError()

@@ -8,12 +8,10 @@ from tempfile import TemporaryFile
 
 import boto3
 import botocore
-from pyspark import SparkContext, SparkConf
-from pyspark.sql import SQLContext, SparkSession
 from pyspark.sql.types import StructType
 from warcio.archiveiterator import ArchiveIterator
 from warcio.recordloader import ArchiveLoadFailed
-from bigdl.orca import init_orca_context, stop_orca_context
+
 
 
 LOGGING_FORMAT = '%(asctime)s %(levelname)s %(name)s: %(message)s'
@@ -33,21 +31,15 @@ class CCSparkJob:
     warc_input_failed = None
     
 
-    def __init__(self, num_input_partitions=64, local_temp_dir=None, 
-                 log_level='INFO', spark_profiler=None, spark_master_url=None):
+    def __init__(self, spark_manager, num_input_partitions=64, local_temp_dir=None, log_level='INFO'):
 
+        self.spark_manager = spark_manager
         # Number of input splits/partitions, number of parallel tasks to process WARC files/records
         self.num_input_partitions = num_input_partitions
         # Local temporary directory, used to buffer content from S3
         self.local_temp_dir = local_temp_dir
         # Logging level
         self.log_level = log_level
-        # Enable PySpark profiler and log profiling metrics if job has finished, cf. spark.python.profile
-        self.spark_profiler = spark_profiler
-        # address of spark master node
-        self.spark_master_url = spark_master_url
-
-        self.use_bigdl = False
 
         logging.basicConfig(level=self.log_level, format=LOGGING_FORMAT)
 
@@ -63,14 +55,16 @@ class CCSparkJob:
             self.log_level = level
         logging.basicConfig(level=level, format=LOGGING_FORMAT)
 
-    def init_accumulators(self, sc):
+    def init_accumulators(self):
+        sc = self.spark_manager.get_spark_context()
         self.records_processed = sc.accumulator(0)
         self.records_parsing_failed = sc.accumulator(0)
         self.warc_input_processed = sc.accumulator(0)
         self.warc_input_failed = sc.accumulator(0)
 
-    def get_logger(self, spark_context=None):
+    def get_logger(self):
         """Get logger from SparkContext or (if None) from logging module"""
+        spark_context = self.spark_manager.get_spark_context()
         if spark_context is None:
             return logging.getLogger(self.name)
         return spark_context._jvm.org.apache.log4j.LogManager \
@@ -88,135 +82,35 @@ class CCSparkJob:
         return self._run()
 
     def _run(self):
-        conf = {}
+        self.init_accumulators()
 
-        if self.spark_profiler:
-            conf["spark.python.profile"] = "true"
+        result = self.run_job()
 
-        "spark.mongodb.input.uri", "mongodb://localhost:27017") \
-    .config("spark.mongodb.output.uri", "mongodb://localhost:27017") \
+        return result
 
-        # add packages to allow pulling from AWS S3
-        packages = [
-            'com.amazonaws:aws-java-sdk-bundle:1.11.375',
-            'org.apache.hadoop:hadoop-aws:3.2.0',
-            'org.mongodb.spark:mongo-spark-connector_2.12:3.0.1'
-        ]
-        conf['spark.jars.packages'] = ','.join(packages)
+    def log_aggregator(self, agg, descr):
+        self.get_logger().info(descr.format(agg.value))
 
-        # anon creds for aws
-        conf['spark.hadoop.fs.s3a.aws.credentials.provider'] = 'org.apache.hadoop.fs.s3a.AnonymousAWSCredentialsProvider'
-        conf['spark.hadoop.fs.s3a.impl'] = 'org.apache.hadoop.fs.s3a.S3AFileSystem'
-
-        conf['spark.app.name'] = self.name
-
-        if self.spark_master_url:
-
-            # set spark container image
-            container_image = 'bigdl-k8s-spark-3.1.2-hadoop-3.2.0:latest'
-            conf['spark.kubernetes.container.image'] = container_image
-
-            # allow spark worker scaling
-            dynamic_scaling = False
-            if dynamic_scaling:
-                conf['spark.dynamicAllocation.enabled'] = 'true'
-                conf['spark.dynamicAllocation.shuffleTracking.enabled'] = 'true'
-                conf["spark.dynamicAllocation.maxExecutors"] = "5"
-            else:
-                num_executors = 1
-                conf['spark.executor.instances'] = str(num_executors)
-
-            # specify pod size
-            executor_cores = 32
-            conf['spark.executor.cores'] = str(executor_cores)
-            conf['spark.kubernetes.executor.request.cores'] = '28800m'
-            executor_memory = '450g'
-            conf['spark.executor.memory'] = executor_memory
-
-            # add labels to pods
-            conf['spark.kubernetes.executor.label.app'] = 'seldonite'
-
-            # allow python deps to be used
-            this_dir_path = os.path.dirname(os.path.abspath(__file__))
-            conda_package_path = os.path.join(this_dir_path, 'seldonite_spark_env.tar.gz')
-            os.environ['PYSPARK_PYTHON'] = '/opt/spark/work-dir/environment/bin/python'
-            os.environ['BIGDL_CLASSPATH'] = '/opt/spark/work-dir/environment/lib/python3.7/site-packages/bigdl/share/dllib/lib/bigdl-dllib-spark_3.1.2-0.14.0-SNAPSHOT-jar-with-dependencies.jar:/opt/spark/work-dir/environment/lib/python3.7/site-packages/bigdl/share/orca/lib/bigdl-orca-spark_3.1.2-0.14.0-SNAPSHOT-jar-with-dependencies.jar'
-            spark_archives = f'{conda_package_path}#environment'
-
-            for archive_path in self.archives:
-                dir_name = os.path.splitext(os.path.basename(archive_path))[0]
-                spark_archives += f",{archive_path}#{dir_name}"
-
-            conf['spark.archives'] = spark_archives
-
-            if self.use_bigdl:
-                sc = init_orca_context(cluster_mode='k8s-client',
-                                       num_nodes=num_executors,
-                                       cores=executor_cores,
-                                       memory=executor_memory,
-                                       master=self.spark_master_url, 
-                                       container_image=container_image,
-                                       conf=conf)
-            else:
-                spark_conf = SparkConf()
-                spark_conf.setAll(conf.items())
-                sc = SparkContext(
-                    master=self.spark_master_url,
-                    conf=spark_conf
-                )
-        else:
-            os.environ['PYSPARK_PYTHON'] = 'python'
-            if self.use_bigdl:
-                sc = init_orca_context(cluster_mode='local',
-                                       conf=conf)
-            else:
-                spark_conf = SparkConf()
-                spark_conf.setAll(conf.items())
-                sc = SparkContext(
-                    conf=spark_conf
-                )
-
-        try:
-            sqlc = SQLContext(sparkContext=sc)
-
-            self.init_accumulators(sc)
-
-            result = self.run_job(sc, sqlc)
-
-            if self.spark_profiler:
-                sc.show_profiles()
-
-            return result
-
-        finally:
-            if self.use_bigdl:
-                stop_orca_context()
-                #pass
-            else:
-                sc.stop()
-
-    def log_aggregator(self, sc, agg, descr):
-        self.get_logger(sc).info(descr.format(agg.value))
-
-    def log_aggregators(self, sc):
-        self.log_aggregator(sc, self.warc_input_processed,
+    def log_aggregators(self):
+        self.log_aggregator(self.warc_input_processed,
                             'WARC/WAT/WET input files processed = {}')
-        self.log_aggregator(sc, self.warc_input_failed,
+        self.log_aggregator(self.warc_input_failed,
                             'WARC/WAT/WET input files failed = {}')
-        self.log_aggregator(sc, self.records_processed,
+        self.log_aggregator(self.records_processed,
                             'WARC/WAT/WET records processed = {}')
-        self.log_aggregator(sc, self.records_parsing_failed,
+        self.log_aggregator(self.records_parsing_failed,
                             'WARC/WAT/WET records parsing failed = {}')
 
-    def run_job(self, sc, sqlc):
+    def run_job(self):
+        sc = self.spark_manager.get_spark_context()
         input_data = sc.parallelize(self.input_file_listing,
                                  numSlices=self.num_input_partitions)
 
         rdd = input_data.mapPartitions(self.process_warcs)
 
-        self.log_aggregators(sc)
+        self.log_aggregators()
 
-        return self.process_dataset(sqlc, rdd)
+        return rdd.toDF()
 
     def process_warcs(self, iterator):
         s3pattern = re.compile('^s3://([^/]+)/(.+)')
@@ -343,45 +237,49 @@ class CCIndexSparkJob(CCSparkJob):
         # path to default common crawl index
         self.table_path = table_path
 
-    def load_table(self, sc, spark):
-        parquet_reader = spark.read.format('parquet')
+    def load_table(self):
+        spark_session = self.spark_manager.get_spark_session()
+        parquet_reader = spark_session.read.format('parquet')
         parquet_reader = parquet_reader.schema(self.table_schema)
         df = parquet_reader.load(self.table_path)
         df.createOrReplaceTempView(self.table_name)
-        self.get_logger(sc).info(
+        self.get_logger().info(
             "Schema of table {}:\n{}".format(self.table_name, df.schema))
 
-    def execute_query(self, sc, spark, query):
-        sqldf = spark.sql(query)
-        self.get_logger(sc).info("Executing query: {}".format(query))
+    def execute_query(self, query):
+        spark_session = self.spark_manager.get_spark_session()
+        sqldf = spark_session.sql(query)
+        self.get_logger().info("Executing query: {}".format(query))
         sqldf.explain()
         return sqldf
 
-    def load_dataframe(self, sc, session, partitions=-1):
+    def load_dataframe(self, partitions=-1):
         if self.query is not None:
-            self.load_table(sc, session)
-            sqldf = self.execute_query(sc, session, self.query)
+            self.load_table()
+            sqldf = self.execute_query(self.query)
         else:
-            sqldf = session.read.format("csv").option("header", True) \
-                .option("inferSchema", True).load(self.csv)
+            spark_session = self.spark_manager.get_spark_session()
+            sqldf = spark_session.read.format("csv") \
+                                      .option("header", True) \
+                                      .option("inferSchema", True) \
+                                      .load(self.csv)
         sqldf.persist()
 
         num_rows = sqldf.count()
-        self.get_logger(sc).info(
+        self.get_logger().info(
             "Number of records/rows matched by query: {}".format(num_rows))
 
         if partitions > 0:
-            self.get_logger(sc).info(
+            self.get_logger().info(
                 "Repartitioning data to {} partitions".format(partitions))
             sqldf = sqldf.repartition(partitions)
 
         return sqldf
 
-    def run_job(self, sc, sqlc):
-        session = SparkSession.builder.config(conf=sc.getConf()).getOrCreate()
-        sqldf = self.load_dataframe(sc, session, self.num_input_partitions)
+    def run_job(self):
+        sqldf = self.load_dataframe(self.num_input_partitions)
 
-        self.log_aggregators(sc)
+        self.log_aggregators()
 
         return self.process_dataset(sqldf)
 
@@ -458,9 +356,8 @@ class CCIndexWarcSparkJob(CCIndexSparkJob):
                     'Invalid WARC record: {} ({}, offset: {}, length: {}) - {}'
                     .format(url, warc_path, offset, length, exception))
 
-    def run_job(self, sc, sqlc):
-        session = SparkSession.builder.config(conf=sc.getConf()).getOrCreate()
-        sqldf = self.load_dataframe(sc, session, self.num_input_partitions)
+    def run_job(self):
+        sqldf = self.load_dataframe(self.num_input_partitions)
 
         if self.url_only:
             columns = ['url']
@@ -478,11 +375,10 @@ class CCIndexWarcSparkJob(CCIndexSparkJob):
 
         rdd = warc_recs.mapPartitions(self.fetch_process_warc_records)
 
-        self.log_aggregators(sc)
+        self.log_aggregators()
 
-        return self.process_dataset(session, rdd)
+        return rdd.toDF()
 
-    def run(self, url_only, archives=[]):
+    def run(self, url_only):
         self.url_only = url_only
-        self.archives = archives
         return super().run()

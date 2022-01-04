@@ -7,8 +7,8 @@ import pyspark.sql as psql
 
 from seldonite import filters
 from seldonite.helpers import utils
-from seldonite.spark.cc_index_fetch_news import CCIndexFetchNewsJob
-from seldonite.spark.fetch_news import FetchNewsJob
+from seldonite.commoncrawl.cc_index_fetch_news import CCIndexFetchNewsJob
+from seldonite.commoncrawl.fetch_news import FetchNewsJob
 
 import mocks
 

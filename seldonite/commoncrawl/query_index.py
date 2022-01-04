@@ -1,4 +1,4 @@
-from seldonite.spark.sparkcc import CCIndexSparkJob
+from seldonite.commoncrawl.sparkcc import CCIndexSparkJob
 
 class QueryIndexJob(CCIndexSparkJob):
 
