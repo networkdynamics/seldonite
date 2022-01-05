@@ -31,9 +31,8 @@ class CCSparkJob:
     warc_input_failed = None
     
 
-    def __init__(self, spark_manager, num_input_partitions=64, local_temp_dir=None, log_level='INFO'):
+    def __init__(self, num_input_partitions=64, local_temp_dir=None, log_level='INFO'):
 
-        self.spark_manager = spark_manager
         # Number of input splits/partitions, number of parallel tasks to process WARC files/records
         self.num_input_partitions = num_input_partitions
         # Local temporary directory, used to buffer content from S3
@@ -55,22 +54,24 @@ class CCSparkJob:
             self.log_level = level
         logging.basicConfig(level=level, format=LOGGING_FORMAT)
 
-    def init_accumulators(self):
-        sc = self.spark_manager.get_spark_context()
+    def init_accumulators(self, spark_manager):
+        sc = spark_manager.get_spark_context()
         self.records_processed = sc.accumulator(0)
         self.records_parsing_failed = sc.accumulator(0)
         self.warc_input_processed = sc.accumulator(0)
         self.warc_input_failed = sc.accumulator(0)
 
-    def get_logger(self):
+    def get_logger(self, spark_manager=None):
         """Get logger from SparkContext or (if None) from logging module"""
-        spark_context = self.spark_manager.get_spark_context()
-        if spark_context is None:
+        if spark_manager:
+            spark_context = spark_manager.get_spark_context()
+            return spark_context._jvm.org.apache.log4j.LogManager \
+                .getLogger(self.name)
+        else:
             return logging.getLogger(self.name)
-        return spark_context._jvm.org.apache.log4j.LogManager \
-            .getLogger(self.name)
+        
 
-    def run(self, input_file_listing, url_only, archives=[]):
+    def run(self, spark_manager, input_file_listing, url_only, archives=[]):
         '''
         params:
         input_file_listing: Path to file listing input paths
@@ -79,36 +80,34 @@ class CCSparkJob:
         self.url_only = url_only
         self.input_file_listing = input_file_listing
         self.archives = archives
-        return self._run()
+        return self._run(spark_manager)
 
-    def _run(self):
-        self.init_accumulators()
+    def _run(self, spark_manager):
+        self.init_accumulators(spark_manager)
 
-        result = self.run_job()
+        return self.run_job(spark_manager)
 
-        return result
+    def log_aggregator(self, spark_manager, agg, descr):
+        self.get_logger(spark_manager=spark_manager).info(descr.format(agg.value))
 
-    def log_aggregator(self, agg, descr):
-        self.get_logger().info(descr.format(agg.value))
-
-    def log_aggregators(self):
-        self.log_aggregator(self.warc_input_processed,
+    def log_aggregators(self, spark_manager):
+        self.log_aggregator(spark_manager, self.warc_input_processed,
                             'WARC/WAT/WET input files processed = {}')
-        self.log_aggregator(self.warc_input_failed,
+        self.log_aggregator(spark_manager, self.warc_input_failed,
                             'WARC/WAT/WET input files failed = {}')
-        self.log_aggregator(self.records_processed,
+        self.log_aggregator(spark_manager, self.records_processed,
                             'WARC/WAT/WET records processed = {}')
-        self.log_aggregator(self.records_parsing_failed,
+        self.log_aggregator(spark_manager, self.records_parsing_failed,
                             'WARC/WAT/WET records parsing failed = {}')
 
-    def run_job(self):
-        sc = self.spark_manager.get_spark_context()
+    def run_job(self, spark_manager):
+        sc = spark_manager.get_spark_context()
         input_data = sc.parallelize(self.input_file_listing,
                                  numSlices=self.num_input_partitions)
 
         rdd = input_data.mapPartitions(self.process_warcs)
 
-        self.log_aggregators()
+        self.log_aggregators(spark_manager)
 
         return rdd.toDF()
 
@@ -223,8 +222,8 @@ class CCIndexSparkJob(CCSparkJob):
     # description of input and output shown in --help
     input_descr = "Path to Common Crawl index table"
 
-    def __init__(self, table_path='s3a://commoncrawl/cc-index/table/cc-main/warc/', table_name='ccindex', query=None, **kwargs):
-        super().__init__(**kwargs)
+    def __init__(self, *args, table_path='s3a://commoncrawl/cc-index/table/cc-main/warc/', table_name='ccindex', query=None, **kwargs):
+        super().__init__(*args, **kwargs)
         # Name of the table data is loaded into
         self.table_name = table_name
         # SQL query to select rows (required)
@@ -237,28 +236,28 @@ class CCIndexSparkJob(CCSparkJob):
         # path to default common crawl index
         self.table_path = table_path
 
-    def load_table(self):
-        spark_session = self.spark_manager.get_spark_session()
+    def load_table(self, spark_manager):
+        spark_session = spark_manager.get_spark_session()
         parquet_reader = spark_session.read.format('parquet')
         parquet_reader = parquet_reader.schema(self.table_schema)
         df = parquet_reader.load(self.table_path)
         df.createOrReplaceTempView(self.table_name)
-        self.get_logger().info(
-            "Schema of table {}:\n{}".format(self.table_name, df.schema))
+        self.get_logger(spark_manager=spark_manager) \
+            .info("Schema of table {}:\n{}".format(self.table_name, df.schema))
 
-    def execute_query(self, query):
-        spark_session = self.spark_manager.get_spark_session()
+    def execute_query(self, spark_manager, query):
+        spark_session = spark_manager.get_spark_session()
         sqldf = spark_session.sql(query)
-        self.get_logger().info("Executing query: {}".format(query))
+        self.get_logger(spark_manager=spark_manager).info("Executing query: {}".format(query))
         sqldf.explain()
         return sqldf
 
-    def load_dataframe(self, partitions=-1):
+    def load_dataframe(self, spark_manager, partitions=-1):
         if self.query is not None:
-            self.load_table()
-            sqldf = self.execute_query(self.query)
+            self.load_table(spark_manager)
+            sqldf = self.execute_query(spark_manager, self.query)
         else:
-            spark_session = self.spark_manager.get_spark_session()
+            spark_session = spark_manager.get_spark_session()
             sqldf = spark_session.read.format("csv") \
                                       .option("header", True) \
                                       .option("inferSchema", True) \
@@ -266,27 +265,27 @@ class CCIndexSparkJob(CCSparkJob):
         sqldf.persist()
 
         num_rows = sqldf.count()
-        self.get_logger().info(
+        self.get_logger(spark_manager=spark_manager).info(
             "Number of records/rows matched by query: {}".format(num_rows))
 
         if partitions > 0:
-            self.get_logger().info(
+            self.get_logger(spark_manager=spark_manager).info(
                 "Repartitioning data to {} partitions".format(partitions))
             sqldf = sqldf.repartition(partitions)
 
         return sqldf
 
-    def run_job(self):
-        sqldf = self.load_dataframe(self.num_input_partitions)
+    def run_job(self, spark_manager):
+        sqldf = self.load_dataframe(spark_manager, self.num_input_partitions)
 
-        self.log_aggregators()
+        self.log_aggregators(spark_manager)
 
-        return self.process_dataset(sqldf)
+        return sqldf
 
-    def run(self):
+    def run(self, spark_manager):
         if self.query is None:
             raise ValueError('Please ensure query is set before running job.')
-        return self._run()
+        return self._run(spark_manager)
 
 
 class CCIndexWarcSparkJob(CCIndexSparkJob):
@@ -296,8 +295,8 @@ class CCIndexWarcSparkJob(CCIndexSparkJob):
 
     name = "CCIndexWarcSparkJob"
 
-    def __init__(self, query=None, csv=None, **kwargs):
-        super().__init__(**kwargs)
+    def __init__(self, *args, query=None, csv=None, **kwargs):
+        super().__init__(*args, **kwargs)
         # SQL query to select rows. 
         # Note: the result is required to contain the columns `url', `warc_filename', `warc_record_offset' and `warc_record_length', make sure they're SELECTed. 
         # The column `content_charset' is optional and is utilized to read WARC record payloads with the right encoding.
@@ -356,8 +355,8 @@ class CCIndexWarcSparkJob(CCIndexSparkJob):
                     'Invalid WARC record: {} ({}, offset: {}, length: {}) - {}'
                     .format(url, warc_path, offset, length, exception))
 
-    def run_job(self):
-        sqldf = self.load_dataframe(self.num_input_partitions)
+    def run_job(self, spark_manager):
+        sqldf = self.load_dataframe(spark_manager, self.num_input_partitions)
 
         if self.url_only:
             columns = ['url']
@@ -375,10 +374,10 @@ class CCIndexWarcSparkJob(CCIndexSparkJob):
 
         rdd = warc_recs.mapPartitions(self.fetch_process_warc_records)
 
-        self.log_aggregators()
+        self.log_aggregators(spark_manager)
 
         return rdd.toDF()
 
-    def run(self, url_only):
+    def run(self, spark_manager, url_only):
         self.url_only = url_only
-        return super().run()
+        return super().run(spark_manager)

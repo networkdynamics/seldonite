@@ -57,15 +57,14 @@ def preprocess(texts, tokenizer_path=os.path.join('.', 'pon_classifier')):
     tokens = tokenizer.texts_to_sequences(texts)
     return sequence.pad_sequences(tokens, maxlen=PADDING_SIZE)
 
-def preprocess_text_to_list(self, texts, **kwargs):
+def preprocess_text_to_list(texts, **kwargs):
         return (array.tolist() for array in preprocess(texts, **kwargs))
 
-def preprocess_text_partition(self, iter):
-    return utils.map_col_with_index(iter, 'url', 'all_text', 'tokens', self.preprocess_text_to_list, tokenizer_path=self.political_filter_path)
+def preprocess_text_partition(iter):
+    return utils.map_col_with_index(iter, 'url', 'all_text', 'tokens', preprocess_text_to_list)
 
-def preprocess_text(self, session, df):
-    tokens_rdd = df.rdd \
-                    .mapPartitions(self.preprocess_text_partition)
+def preprocess_text(session, df):
+    tokens_rdd = df.rdd.mapPartitions(preprocess_text_partition)
     
     schema = psql.types.StructType([
         psql.types.StructField("url", psql.types.StringType(), True),
@@ -99,7 +98,7 @@ def spark_predict(df, feature_col, pred_col):
             return None
 
     ith = psql.functions.udf(_ith, psql.types.DoubleType())
-    return df.withColumn(pred_col, ith('prediction', psql.functions.lit(1)))
+    return df.withColumn(pred_col, ith('prediction', psql.functions.lit(1))).drop('prediction')
 
 def filter(news_articles, threshold=0.5):
     """

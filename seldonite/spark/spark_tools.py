@@ -7,7 +7,7 @@ from pyspark.sql import SQLContext, SparkSession
 
 
 class SparkBuilder():
-    def __init__(self, master, use_bigdl=True, spark_profiler=False, name='seldonite_app', archives=[]):
+    def __init__(self, master, use_bigdl=True, spark_profiler=False, name='seldonite_app', archives=[], executor_cores=16, executor_memory='160g', num_executors=1):
 
         self.use_bigdl = use_bigdl
         # address of spark master node
@@ -46,14 +46,10 @@ class SparkBuilder():
                 self.conf['spark.dynamicAllocation.shuffleTracking.enabled'] = 'true'
                 self.conf["spark.dynamicAllocation.maxExecutors"] = "5"
             else:
-                num_executors = 1
                 self.conf['spark.executor.instances'] = str(num_executors)
 
             # specify pod size
-            executor_cores = 32
             self.conf['spark.executor.cores'] = str(executor_cores)
-            self.conf['spark.kubernetes.executor.request.cores'] = '28800m'
-            executor_memory = '450g'
             self.conf['spark.executor.memory'] = executor_memory
 
             # add labels to pods

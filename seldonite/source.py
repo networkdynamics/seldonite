@@ -3,7 +3,7 @@ import os
 
 from seldonite.commoncrawl.cc_index_fetch_news import CCIndexFetchNewsJob
 from seldonite.commoncrawl.fetch_news import FetchNewsJob
-from seldonite.commoncrawl.query_index import QueryIndexJob
+from seldonite.commoncrawl.sparkcc import CCIndexSparkJob
 from seldonite.helpers import utils
 from seldonite.model import Article
 from seldonite.spark import spark_tools
@@ -69,7 +69,7 @@ class Source:
     def set_sites(self, sites):
         self.sites = sites
 
-    def fetch(self):
+    def fetch(self, *args, **kwargs):
         raise NotImplementedError()
 
 class WebWideSource(Source):
@@ -112,7 +112,7 @@ class CommonCrawl(WebWideSource):
         else:
             self.crawls = [ crawl ]
 
-    def fetch(self, max_articles, url_only=False):
+    def fetch(self, spark_manager, max_articles, url_only=False):
         # only need to look at crawls that are after the start_date of the search
         if self.start_date is not None:
             self.crawls = utils.get_cc_crawls_since(self.start_date)
@@ -123,7 +123,7 @@ class CommonCrawl(WebWideSource):
         # create the spark job
         job = CCIndexFetchNewsJob()
         job.set_query_options(sites=self.sites, crawls=self.crawls, lang=self.lang, limit=max_articles, path_black_list=self.path_black_list)
-        return job.run(url_only=url_only, keywords=self.keywords, 
+        return job.run(spark_manager, url_only=url_only, keywords=self.keywords, 
                        start_date=self.start_date, end_date=self.end_date)
         
 
@@ -131,8 +131,8 @@ class CommonCrawl(WebWideSource):
         spark_builder = spark_tools.SparkBuilder(spark_master_url)
 
         with spark_builder.start_session() as spark_manager:
-            job = QueryIndexJob()
-            return job.run(query).toPandas()
+            job = CCIndexSparkJob()
+            return job.run(spark_manager, query).toPandas()
 
 class NewsCrawl(WebWideSource):
     '''
@@ -152,14 +152,14 @@ class NewsCrawl(WebWideSource):
         self.political_filter = False
 
 
-    def fetch(self, max_articles, url_only=False):
+    def fetch(self, spark_manager, max_articles, url_only=False):
 
         # get wet file listings from common crawl
         listings = utils.get_news_crawl_listing(start_date=self.start_date, end_date=self.end_date)
 
         # create the spark job
         job = FetchNewsJob()
-        return job.run(listings, url_only=url_only, keywords=self.keywords, limit=max_articles, sites=self.sites)
+        return job.run(spark_manager, listings, url_only=url_only, keywords=self.keywords, limit=max_articles, sites=self.sites)
 
 class SearchEngineSource(WebWideSource):
 

@@ -14,14 +14,17 @@ class Collector:
 
     Can use a variety of search methods
     '''
-    def __init__(self, source, master_url=None):
+    def __init__(self, source, master_url=None, num_executors=1, executor_cores=16, executor_memory='160g'):
         self.source = source
         self.spark_master_url = master_url
+        self.num_executors = num_executors
+        self.executor_cores = executor_cores
+        self.executor_memory = executor_memory
 
         self.keywords = None
         self.url_only_val = False
         self.max_articles = None
-        self.filter_political_articles = True
+        self.political_filter = False
         self.sites=[]
 
     def in_date_range(self, start_date, end_date):
@@ -88,12 +91,12 @@ class Collector:
         else:
             archives = []
 
-        spark_builder = spark_tools.SparkBuilder(self.spark_master_url, use_bigdl=use_bigdl, archives=archives)
+        spark_builder = spark_tools.SparkBuilder(self.spark_master_url, use_bigdl=use_bigdl, archives=archives, executor_cores=self.executor_cores, executor_memory=self.executor_memory, num_executors=self.num_executors)
 
         return spark_builder
 
     def _fetch(self, spark_manager):
-        df  = self.source.fetch(spark_manager, self.sites, self.max_articles, self.url_only_val)
+        df  = self.source.fetch(spark_manager, self.max_articles, url_only=self.url_only_val)
 
         spark_session = spark_manager.get_spark_session()
         if self.political_filter:
@@ -101,14 +104,18 @@ class Collector:
             df = df.withColumn('all_text', psql.functions.concat(df['title'], psql.functions.lit(' '), df['text']))
             # tokenize text
             tokens_df = filters.political.preprocess_text(spark_session, df.select('url', 'all_text'))
-            df = df.join(tokens_df, 'url')
+            df = df.join(tokens_df, 'url').drop('all_text')
             # get political predictions
-            df = filters.political.spark_predict(df, 'tokens', 'pred')
+            pred_col = 'political_pred'
+            df = filters.political.spark_predict(df, 'tokens', pred_col)
+            df = df.drop('tokens')
             # filter where prediction is higher than threshold
-            THRESHOLD = 0.5
-            df = df.filter(df.pred > THRESHOLD)
+            df = df.where(f"{pred_col} > {self.political_filter_threshold}")
 
-        return df.limit(self.limit)
+        if self.max_articles:
+            return df.limit(self.max_articles)
+        else:
+            return df
 
 
     def send_to_database(self, connection_string, database, table):

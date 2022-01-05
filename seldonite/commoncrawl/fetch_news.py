@@ -1,5 +1,3 @@
-import os
-
 import pyspark.sql as psql
 
 from seldonite import filters
@@ -12,11 +10,11 @@ class FetchNewsJob(CCSparkJob):
 
     name = "FetchNewsJob"
 
-    def run(self, listing, limit=None, keywords=[], sites=[], start_date=None, end_date=None, **kwargs):
+    def run(self, spark_manager, listing, limit=None, keywords=[], sites=[], start_date=None, end_date=None, **kwargs):
         self.set_constraints(keywords, start_date, end_date)
         self.limit = limit
         self.sites = sites
-        return super().run(listing, **kwargs)
+        return super().run(spark_manager, listing, **kwargs)
 
     def set_constraints(self, keywords, start_date, end_date):
         self.keywords = keywords
@@ -38,6 +36,9 @@ class FetchNewsJob(CCSparkJob):
         if self.url_only:
             return url
 
+        return self._process_record(url, record)
+
+    def _process_record(self, url, record):
         page = record.content_stream().read()
 
         try:
@@ -51,9 +52,10 @@ class FetchNewsJob(CCSparkJob):
         if not heuristics.og_type(article):
             return None
 
-        publish_date = article.publish_date.date()
-        if (self.start_date and publish_date < self.start_date) or (self.end_date and publish_date > self.end_date):
-            return None
+        if self.start_date or self.end_date:
+            publish_date = article.publish_date.date()
+            if (self.start_date and publish_date < self.start_date) or (self.end_date and publish_date > self.end_date):
+                return None
 
         if self.keywords and not filters.contains_keywords(article, self.keywords):
             return None
