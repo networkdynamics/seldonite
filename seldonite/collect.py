@@ -63,7 +63,7 @@ class Collector:
         return self
 
     def exclude_in_path(self, paths_sections):
-        self.source.set_path_black_list(paths_sections)
+        self.source.set_path_blacklist(paths_sections)
         return self
 
     # TODO split arguments into methods
@@ -111,7 +111,7 @@ class Collector:
         return df.limit(self.limit)
 
 
-    def send_to_database(self, connection_string, table):
+    def send_to_database(self, connection_string, database, table):
         spark_builder = self._get_spark_builder()
         spark_builder.set_output_database(connection_string)
         with spark_builder.start_session() as spark_manager:
