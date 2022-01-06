@@ -360,6 +360,7 @@ class CCIndexWarcSparkJob(CCIndexSparkJob):
 
         if self.url_only:
             columns = ['url']
+            return sqldf.select(*columns)
             warc_recs = sqldf.select(*columns).rdd
             return warc_recs.flatMap(lambda x: x)
         else:

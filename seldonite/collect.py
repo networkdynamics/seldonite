@@ -74,6 +74,7 @@ class Collector:
         '''
         'url_only' will mean no checking for articles
         '''
+        self.check_args()
 
         spark_builder = self._get_spark_builder()
         with spark_builder.start_session() as spark_manager:
@@ -119,6 +120,7 @@ class Collector:
 
 
     def send_to_database(self, connection_string, database, table):
+        self.check_args()
         spark_builder = self._get_spark_builder()
         spark_builder.set_output_database(connection_string)
         with spark_builder.start_session() as spark_manager:
@@ -130,6 +132,9 @@ class Collector:
                 .option("collection", table) \
                 .save()
 
+    def check_args(self):
+        if self.url_only_val and self.political_filter:
+            raise ValueError('Cannot check political articles and get only URLs. Please remove one of the options.')
 
     def find_topics(self, batch_size=1000):
         articles = self.fetch()
