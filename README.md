@@ -36,25 +36,12 @@ To use NLP methods that require the use of spacy:
 python -m spacy download en_core_web_sm
 ```
 
-### Selenium
-
-To use sources that require Selenium, download the chromedriver and place is on your path. For me this goes like this:
-```
-curl -LO https://chromedriver.storage.googleapis.com/94.0.4606.61/chromedriver_linux64.zip
-unzip ./chromedriver_linux64.zip
-mv ./chromedriver /path/to/bin
-rm chromedriver_linux64.zip
-```
-
 ### Spark
 
 To make Python dependencies available to Spark executors, use the dependency packaging script:
 ```
 bash ./seldonite/spark/package_pyspark_deps.sh
 ```
-
-### Horovod
-
 
 
 ## Tests
