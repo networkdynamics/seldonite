@@ -4,7 +4,6 @@ from seldonite.commoncrawl.cc_index_fetch_news import CCIndexFetchNewsJob
 from seldonite.commoncrawl.fetch_news import FetchNewsJob
 from seldonite.commoncrawl.sparkcc import CCIndexSparkJob
 from seldonite.helpers import utils
-from seldonite.model import Article
 from seldonite.spark import spark_tools
 
 from googleapiclient.discovery import build as gbuild
@@ -32,16 +31,14 @@ class Source:
         self.can_lang_filter = True
         self.can_path_black_list = True
 
-    def set_date_range(self, start_date, end_date, strict=True):
+    def set_date_range(self, start_date, end_date):
         '''
         params:
         start_date: (if None, any date is OK as start date), as date
         end_date: (if None, any date is OK as end date), as date
-        strict: if date filtering is strict and the date of an article could not be detected, the article will be discarded
         '''
         self.start_date = start_date
         self.end_date = end_date
-        self.strict = strict
 
     def set_language(self, language):
         if self.can_lang_filter:
@@ -67,20 +64,11 @@ class Source:
     def fetch(self, *args, **kwargs):
         raise NotImplementedError()
 
-class WebWideSource(Source):
-    '''
-    Parent class for web wide sources
-    '''
+    def get_source_spark_conf(self):
+        return {}
 
-    def __init__(self):
-        super().__init__()
 
-        self.keywords = []
-
-    def set_keywords(self, keywords=[]):
-        self.keywords = keywords
-
-class CommonCrawl(WebWideSource):
+class CommonCrawl(Source):
     '''
     Source that uses Spark to search CommonCrawl
     '''
@@ -107,7 +95,7 @@ class CommonCrawl(WebWideSource):
         else:
             self.crawls = [ crawl ]
 
-    def fetch(self, spark_manager, max_articles, url_only=False):
+    def fetch(self, spark_manager, max_articles=None, url_only=False):
         # only need to look at crawls that are after the start_date of the search
         if self.start_date is not None:
             self.crawls = utils.get_cc_crawls_since(self.start_date)
@@ -129,7 +117,7 @@ class CommonCrawl(WebWideSource):
             job = CCIndexSparkJob()
             return job.run(spark_manager, query).toPandas()
 
-class NewsCrawl(WebWideSource):
+class NewsCrawl(Source):
     '''
     Source that uses Spark to search CommonCrawl's NewsCrawl dataset
     '''
@@ -147,7 +135,7 @@ class NewsCrawl(WebWideSource):
         self.political_filter = False
 
 
-    def fetch(self, spark_manager, max_articles, url_only=False):
+    def fetch(self, spark_manager, max_articles=None, url_only=False):
 
         # get wet file listings from common crawl
         listings = utils.get_news_crawl_listing(start_date=self.start_date, end_date=self.end_date)
@@ -156,9 +144,48 @@ class NewsCrawl(WebWideSource):
         job = FetchNewsJob()
         return job.run(spark_manager, listings, url_only=url_only, keywords=self.keywords, limit=max_articles, sites=self.sites)
 
-class SearchEngineSource(WebWideSource):
+class MongoDB(Source):
+    connection_string: str
+    database: str
+    collection: str
 
-    # TODO this is incorrect syntax for param expansion, fix
+    def __init__(self, connection_string: str, database: str, collection: str):
+        self.connection_string = connection_string
+        self.database = database
+        self.collection = collection
+
+    def fetch(self, spark_manager: spark_tools.SparkManager, max_articles: int = None, url_only: bool = False):
+        if '?' in self.connection_string:
+            url_path, query_string = self.connection_string.split('?')
+            query_string = f"?{query_string}"
+        else:
+            url_path = self.connection_string
+            query_string = ''
+
+        uri = f"{url_path}{self.database}.{self.collection}{query_string}"
+
+        spark = spark_manager.get_spark_session()
+        df = spark.read.format("mongo").option("uri", uri).load()
+
+        if url_only:
+            df = df.select('url')
+        else:
+            if self.start_date:
+                df = df.filter(df['publish_date'] >= self.start_date)
+
+            if self.end_date:
+                df = df.filter(df['publish_date'] <= self.end_date)
+
+            if self.sites:
+                df.createOrReplaceTempView("temp")
+                clause = " OR ".join([f"url LIKE '%{site}%'" for site in self.sites])
+                df = spark.sql(f"SELECT text, title, url, publish_date FROM temp WHERE {clause}")
+
+        return df
+
+
+class SearchEngineSource(Source):
+
     def __init__(self):
         super().__init__()
 
@@ -175,7 +202,7 @@ class Google(SearchEngineSource):
         self.dev_key = dev_key
         self.engine_id = engine_id
 
-    def fetch(self, spark_manager, max_articles, url_only=False):
+    def fetch(self, spark_manager, max_articles: int = None, url_only=False):
 
         service = gbuild("customsearch", "v1",
             developerKey=self.dev_key)
