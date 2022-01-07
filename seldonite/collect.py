@@ -14,12 +14,13 @@ class Collector:
 
     Can use a variety of search methods
     '''
-    def __init__(self, source, master_url=None, num_executors=1, executor_cores=16, executor_memory='160g'):
+    def __init__(self, source, master_url=None, num_executors=1, executor_cores=16, executor_memory='160g', spark_conf={}):
         self.source = source
         self.spark_master_url = master_url
         self.num_executors = num_executors
         self.executor_cores = executor_cores
         self.executor_memory = executor_memory
+        self.spark_conf = spark_conf
 
         self.keywords = None
         self.url_only_val = False
@@ -92,7 +93,9 @@ class Collector:
         else:
             archives = []
 
-        spark_builder = spark_tools.SparkBuilder(self.spark_master_url, use_bigdl=use_bigdl, archives=archives, executor_cores=self.executor_cores, executor_memory=self.executor_memory, num_executors=self.num_executors)
+        spark_builder = spark_tools.SparkBuilder(self.spark_master_url, use_bigdl=use_bigdl, archives=archives,
+                                                 executor_cores=self.executor_cores, executor_memory=self.executor_memory, num_executors=self.num_executors,
+                                                 spark_conf=self.spark_conf)
 
         return spark_builder
 

@@ -7,7 +7,7 @@ from pyspark.sql import SQLContext, SparkSession
 
 
 class SparkBuilder():
-    def __init__(self, master, use_bigdl=True, spark_profiler=False, name='seldonite_app', archives=[], executor_cores=16, executor_memory='160g', num_executors=1):
+    def __init__(self, master, use_bigdl=True, name='seldonite_app', archives=[], executor_cores=16, executor_memory='160g', num_executors=1, spark_conf={}):
 
         self.use_bigdl = use_bigdl
         # address of spark master node
@@ -15,9 +15,8 @@ class SparkBuilder():
 
         self.conf = {}
 
-        # Enable PySpark profiler and log profiling metrics if job has finished, cf. spark.python.profile
-        if spark_profiler:
-            self.conf["spark.python.profile"] = "true"
+        # add user set spark conf
+        self.conf.update(spark_conf.items())
 
         # add packages to allow pulling from AWS S3
         packages = [
