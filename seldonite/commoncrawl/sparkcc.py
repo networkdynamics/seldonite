@@ -12,7 +12,7 @@ from pyspark.sql.types import StructType
 from warcio.archiveiterator import ArchiveIterator
 from warcio.recordloader import ArchiveLoadFailed
 
-
+from seldonite.spark.spark_tools import SparkManager
 
 LOGGING_FORMAT = '%(asctime)s %(levelname)s %(name)s: %(message)s'
 
@@ -31,10 +31,7 @@ class CCSparkJob:
     warc_input_failed = None
     
 
-    def __init__(self, num_input_partitions=64, local_temp_dir=None, log_level='INFO'):
-
-        # Number of input splits/partitions, number of parallel tasks to process WARC files/records
-        self.num_input_partitions = num_input_partitions
+    def __init__(self, local_temp_dir=None, log_level='INFO'):
         # Local temporary directory, used to buffer content from S3
         self.local_temp_dir = local_temp_dir
         # Logging level
@@ -100,10 +97,11 @@ class CCSparkJob:
         self.log_aggregator(spark_manager, self.records_parsing_failed,
                             'WARC/WAT/WET records parsing failed = {}')
 
-    def run_job(self, spark_manager):
+    def run_job(self, spark_manager: SparkManager):
         sc = spark_manager.get_spark_context()
+        self.num_partitions = 4 * spark_manager.get_num_cpus()
         input_data = sc.parallelize(self.input_file_listing,
-                                 numSlices=self.num_input_partitions)
+                                    numSlices=self.num_partitions)
 
         rdd = input_data.mapPartitions(self.process_warcs)
 
@@ -166,7 +164,7 @@ class CCSparkJob:
            and allows to access also values from ArchiveIterator, namely
            WARC record offset and length."""
         records_successfully_processed = 0
-        num_to_successfully_process = math.ceil(self.limit / self.num_input_partitions) if self.limit else None
+        num_to_successfully_process = math.ceil(self.limit / self.num_partitions) if self.limit else None
         for record in archive_iterator:
             obj = self.process_record(record)
             if obj:
@@ -252,7 +250,7 @@ class CCIndexSparkJob(CCSparkJob):
         sqldf.explain()
         return sqldf
 
-    def load_dataframe(self, spark_manager, partitions=-1):
+    def load_dataframe(self, spark_manager: SparkManager):
         if self.query is not None:
             self.load_table(spark_manager)
             sqldf = self.execute_query(spark_manager, self.query)
@@ -268,15 +266,15 @@ class CCIndexSparkJob(CCSparkJob):
         self.get_logger(spark_manager=spark_manager).info(
             "Number of records/rows matched by query: {}".format(num_rows))
 
-        if partitions > 0:
-            self.get_logger(spark_manager=spark_manager).info(
-                "Repartitioning data to {} partitions".format(partitions))
-            sqldf = sqldf.repartition(partitions)
+        num_partitions = 4 * spark_manager.get_num_cpus()
+        self.get_logger(spark_manager=spark_manager).info(
+            "Repartitioning data to {} partitions".format(num_partitions))
+        sqldf = sqldf.repartition(num_partitions)
 
         return sqldf
 
     def run_job(self, spark_manager):
-        sqldf = self.load_dataframe(spark_manager, self.num_input_partitions)
+        sqldf = self.load_dataframe(spark_manager)
 
         self.log_aggregators(spark_manager)
 
@@ -356,13 +354,11 @@ class CCIndexWarcSparkJob(CCIndexSparkJob):
                     .format(url, warc_path, offset, length, exception))
 
     def run_job(self, spark_manager):
-        sqldf = self.load_dataframe(spark_manager, self.num_input_partitions)
+        sqldf = self.load_dataframe(spark_manager)
 
         if self.url_only:
             columns = ['url']
             return sqldf.select(*columns)
-            warc_recs = sqldf.select(*columns).rdd
-            return warc_recs.flatMap(lambda x: x)
         else:
             columns = ['url', 'warc_filename', 'warc_record_offset', 'warc_record_length']
             if 'content_charset' in sqldf.columns:

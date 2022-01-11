@@ -88,6 +88,7 @@ class SparkManager():
 
         self.spark_master_url = spark_master_url
         self.use_bigdl = use_bigdl
+        self.conf = conf
 
         if self.spark_master_url:
             if self.use_bigdl:
@@ -129,6 +130,9 @@ class SparkManager():
     def get_spark_context(self):
         return self._spark_context
     
+    def get_num_cpus(self):
+        return int(self.conf['spark.executor.instances']) * int(self.conf['spark.executor.cores'])
+
     def end(self):
         if self.use_bigdl:
             stop_orca_context()
