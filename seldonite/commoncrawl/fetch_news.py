@@ -49,6 +49,9 @@ class FetchNewsJob(CCSparkJob):
             self.records_parsing_failed.add(1)
             return None
 
+        if (not article.title) or (not article.text) or (not article.publish_date):
+            return None
+
         if not heuristics.og_type(article):
             return None
 

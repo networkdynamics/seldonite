@@ -8,8 +8,7 @@ import botocore
 import boto3
 import pyspark.sql as psql
 import requests
-
-from seldonite.model import Article
+from newspaper import Article
 
 def link_to_article(link):
     article = Article(link)
