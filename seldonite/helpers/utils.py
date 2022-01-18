@@ -142,7 +142,7 @@ def construct_query(sites, limit, crawls=None, lang='eng', path_black_list=[]):
 
     # Language filter
     if lang:
-        query += f" AND (content_languages IS NULL OR (content_languages IS NOT NULL AND content_languages LIKE '%{lang}%'))"
+        query += f" AND (content_languages IS NULL OR (content_languages IS NOT NULL AND content_languages = '{lang}'))"
 
     if path_black_list:
         clause = " OR ".join((f"url_path LIKE '%{path_element}%'" for path_element in path_black_list))

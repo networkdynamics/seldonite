@@ -7,7 +7,7 @@ from pyspark.sql import SQLContext, SparkSession
 
 
 class SparkBuilder():
-    def __init__(self, master, use_bigdl=True, name='seldonite_app', archives=[], executor_cores=16, executor_memory='160g', num_executors=1, spark_conf={}):
+    def __init__(self, master, use_bigdl=True, use_mongo=True, name='seldonite_app', archives=[], executor_cores=16, executor_memory='160g', num_executors=1, spark_conf={}):
 
         self.use_bigdl = use_bigdl
         # address of spark master node
@@ -21,9 +21,11 @@ class SparkBuilder():
         # add packages to allow pulling from AWS S3
         packages = [
             'com.amazonaws:aws-java-sdk-bundle:1.11.375',
-            'org.apache.hadoop:hadoop-aws:3.2.0',
-            'org.mongodb.spark:mongo-spark-connector_2.12:3.0.1'
+            'org.apache.hadoop:hadoop-aws:3.2.0'
         ]
+        if use_mongo:
+            packages.append('org.mongodb.spark:mongo-spark-connector_2.12:3.0.1')
+
         self.conf['spark.jars.packages'] = ','.join(packages)
 
         # anon creds for aws

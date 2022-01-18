@@ -101,7 +101,6 @@ class Collector:
 
     def _fetch(self, spark_manager):
         df  = self.source.fetch(spark_manager, self.max_articles, url_only=self.url_only_val)
-
         spark_session = spark_manager.get_spark_session()
         if self.political_filter:
             # create concat of title and text
@@ -109,6 +108,11 @@ class Collector:
             # tokenize text
             tokens_df = filters.political.preprocess_text(spark_session, df.select('url', 'all_text'))
             df = df.join(tokens_df, 'url').drop('all_text')
+
+            # drop invalid rows
+            df = df.filter(df['tokens'].isNotNull())
+            df = df.filter(psql.functions.size('tokens') > 0)
+
             # get political predictions
             pred_col = 'political_pred'
             df = filters.political.spark_predict(df, 'tokens', pred_col)

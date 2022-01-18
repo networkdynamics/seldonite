@@ -22,6 +22,7 @@ class Source:
         # flag to show this source returns in a timely fashion without callbacks, unless overriden
         self.uses_callback = False
         self.can_keyword_filter = False
+        self.keywords = None
         # we need to filter for only news articles by default
         self.news_only = False
 
@@ -110,12 +111,12 @@ class CommonCrawl(Source):
                        start_date=self.start_date, end_date=self.end_date)
         
 
-    def query_index(self, spark_master_url, query):
-        spark_builder = spark_tools.SparkBuilder(spark_master_url)
+    def query_index(self, query, spark_master_url=None):
+        spark_builder = spark_tools.SparkBuilder(spark_master_url, use_bigdl=False, use_mongo=False)
 
         with spark_builder.start_session() as spark_manager:
             job = CCIndexSparkJob()
-            return job.run(spark_manager, query).toPandas()
+            return job.run(spark_manager, query=query).toPandas()
 
 class NewsCrawl(Source):
     '''

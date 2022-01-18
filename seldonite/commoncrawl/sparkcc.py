@@ -280,9 +280,13 @@ class CCIndexSparkJob(CCSparkJob):
 
         return sqldf
 
-    def run(self, spark_manager):
+    def run(self, spark_manager, query=None):
         if self.query is None:
-            raise ValueError('Please ensure query is set before running job.')
+            if query is None:
+                raise ValueError('Please ensure query is set before running job.')
+
+            self.query = query
+            
         return self._run(spark_manager)
 
 
