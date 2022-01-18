@@ -57,3 +57,11 @@ def test_map_col_with_index():
     res = list(res_gen)
     assert len(res) == len(data)
 
+def test_construct_db_uri():
+    connection_str = 'mongodb+srv://user:pass@mongodb-svc.default.svc.cluster.local/admin?ssl=false'
+    database = 'my_db'
+    collection = 'my_collection'
+    desired_uri = 'mongodb+srv://user:pass@mongodb-svc.default.svc.cluster.local/my_db.my_collection?ssl=false'
+
+    uri = utils.construct_db_uri(connection_str, database, collection)
+    assert uri == desired_uri

@@ -66,8 +66,8 @@ class Collector:
         self.source.set_language(lang)
         return self
 
-    def exclude_in_path(self, paths_sections):
-        self.source.set_path_blacklist(paths_sections)
+    def exclude_in_url(self, url_wildcards):
+        self.source.set_url_blacklist(url_wildcards)
         return self
 
     # TODO split arguments into methods

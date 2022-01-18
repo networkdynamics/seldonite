@@ -1,12 +1,11 @@
 import pytest
 
-from seldonite import model
 from seldonite import collect
 
 import mock_source
 
 @pytest.mark.parametrize("can_keyword_filter, articles",
-    [(False, [model.Article('https://cbc.ca/thing/happened/', title='', text=keyword) for keyword in ['policy', 'notpolicy']]),
+    [(False, [{'url': 'https://cbc.ca/thing/happened/', 'title': '', 'text': keyword} for keyword in ['policy', 'notpolicy']]),
      (True, None)])
 def test_fetch(can_keyword_filter, articles):
     source = mock_source.MockSource(can_keyword_filter=can_keyword_filter,
@@ -21,7 +20,7 @@ def test_fetch(can_keyword_filter, articles):
     assert all(policy_articles)
 
 @pytest.mark.parametrize("articles",
-    [([model.Article('https://cbc.ca/thing/happened/', title='', text=content) for content in ['economic policy happened in government',
+    [([{'url': 'https://cbc.ca/thing/happened/', 'title': '', 'text': content} for content in ['economic policy happened in government',
                                                                                                'social policy prime minister',
                                                                                                'tax cuts for rich',
                                                                                                'social security increase for elderly',

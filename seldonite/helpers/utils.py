@@ -120,7 +120,7 @@ def get_cc_crawls_since(date):
 
     return crawl_ids
 
-def construct_query(sites, limit, crawls=None, lang='eng', path_black_list=[]):
+def construct_query(sites, limit, crawls=None, lang='eng', url_black_list=[]):
     #TODO automatically get most recent crawl
     query = "SELECT url, warc_filename, warc_record_offset, warc_record_length, content_charset FROM ccindex WHERE subset = 'warc'"
 
@@ -144,8 +144,10 @@ def construct_query(sites, limit, crawls=None, lang='eng', path_black_list=[]):
     if lang:
         query += f" AND (content_languages IS NULL OR (content_languages IS NOT NULL AND content_languages = '{lang}'))"
 
-    if path_black_list:
-        clause = " OR ".join((f"url_path LIKE '%{path_element}%'" for path_element in path_black_list))
+    if url_black_list:
+        # replace wildcards with %
+        url_black_list = [url_wildcard.replace('*', '%') for url_wildcard in url_black_list]
+        clause = " OR ".join((f"url_path LIKE '{url_wildcard}'" for url_wildcard in url_black_list))
         query += f" AND NOT ({clause})"
 
     # set limit to sites if needed
@@ -172,3 +174,17 @@ def map_col_with_index(iter, index_name, col_name, mapped_name, func, **kwargs):
 def unzip(from_zip, to_path):
     with zipfile.ZipFile(from_zip, 'r') as zip_ref:
         zip_ref.extractall(to_path)
+
+
+def construct_db_uri(connection_string, database, collection):
+    if '?' in connection_string:
+        url_path, query_string = connection_string.split('?')
+        query_string = f"?{query_string}"
+    else:
+        url_path = connection_string
+        query_string = ''
+
+    if url_path.count('/') > 2:
+        url_path = '/'.join(url_path.split('/')[:-1])
+
+    return f"{url_path}/{database}.{collection}{query_string}"

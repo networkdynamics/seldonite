@@ -8,6 +8,7 @@ from seldonite.spark import spark_tools
 
 from googleapiclient.discovery import build as gbuild
 import pandas as pd
+import pyspark.sql as psql
 
 # TODO make abstract
 class Source:
@@ -30,7 +31,8 @@ class Source:
         self.end_date = None
 
         self.can_lang_filter = True
-        self.can_path_black_list = True
+        self.can_url_black_list = True
+        self.url_black_list = []
 
     def set_date_range(self, start_date, end_date):
         '''
@@ -47,9 +49,9 @@ class Source:
         else:
             raise NotImplementedError('This source cannot filter language, please try another source.')
 
-    def set_path_blacklist(self, path_black_list):
-        if self.can_path_black_list:
-            self.path_black_list = path_black_list
+    def set_url_blacklist(self, url_black_list):
+        if self.can_url_black_list:
+            self.url_black_list = url_black_list
         else:
             raise NotImplementedError('This source cannot blacklist paths, please try another source.')
 
@@ -85,8 +87,7 @@ class CommonCrawl(Source):
         self.news_only = True
         self.can_lang_filter = True
         self.lang = None
-        self.can_path_black_list = True
-        self.path_black_list = []
+        self.can_url_black_list = True
 
     def set_crawls(self, crawl):
         if crawl == 'latest':
@@ -94,7 +95,10 @@ class CommonCrawl(Source):
         elif crawl == 'all':
             self.crawls = utils.get_all_cc_crawls()
         else:
-            self.crawls = [ crawl ]
+            if type(crawl) == str:
+                self.crawls = [ crawl ]
+            elif type(crawl) == list:
+                self.crawls = crawl
 
     def fetch(self, spark_manager, max_articles=None, url_only=False):
         # only need to look at crawls that are after the start_date of the search
@@ -106,7 +110,7 @@ class CommonCrawl(Source):
 
         # create the spark job
         job = CCIndexFetchNewsJob()
-        job.set_query_options(sites=self.sites, crawls=self.crawls, lang=self.lang, limit=max_articles, path_black_list=self.path_black_list)
+        job.set_query_options(sites=self.sites, crawls=self.crawls, lang=self.lang, limit=max_articles, url_black_list=self.url_black_list)
         return job.run(spark_manager, url_only=url_only, keywords=self.keywords, 
                        start_date=self.start_date, end_date=self.end_date)
         
@@ -132,8 +136,6 @@ class NewsCrawl(Source):
 
         # we apply newsplease heuristics in spark job
         self.news_only = True
-        self.can_political_filter = True
-        self.political_filter = False
 
 
     def fetch(self, spark_manager, max_articles=None, url_only=False):
@@ -151,19 +153,15 @@ class MongoDB(Source):
     collection: str
 
     def __init__(self, connection_string: str, database: str, collection: str):
+        super().__init__()
         self.connection_string = connection_string
         self.database = database
         self.collection = collection
 
-    def fetch(self, spark_manager: spark_tools.SparkManager, max_articles: int = None, url_only: bool = False):
-        if '?' in self.connection_string:
-            url_path, query_string = self.connection_string.split('?')
-            query_string = f"?{query_string}"
-        else:
-            url_path = self.connection_string
-            query_string = ''
+        self.can_url_black_list = True
 
-        uri = f"{url_path}{self.database}.{self.collection}{query_string}"
+    def fetch(self, spark_manager: spark_tools.SparkManager, max_articles: int = None, url_only: bool = False):
+        uri = utils.construct_db_uri(self.connection_string, self.database, self.collection)
 
         spark = spark_manager.get_spark_session()
         df = spark.read.format("mongo").option("uri", uri).load()
@@ -182,7 +180,12 @@ class MongoDB(Source):
                 clause = " OR ".join([f"url LIKE '%{site}%'" for site in self.sites])
                 df = spark.sql(f"SELECT text, title, url, publish_date FROM temp WHERE {clause}")
 
-        return df
+        if self.url_black_list:
+            for blacklist_pattern in self.url_black_list:
+                like_pattern = blacklist_pattern.replace('*', '%')
+                df = df.where(~psql.functions.col('url').like(like_pattern))
+
+        return df.limit(max_articles) if max_articles else df
 
 
 class SearchEngineSource(Source):
