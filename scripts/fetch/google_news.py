@@ -1,14 +1,14 @@
 import argparse
 import json
 
-from seldonite import source
+from seldonite import sources
 from seldonite import collect
 
 
 def main(args):
 
     sites = [args.site]
-    google_source = source.Google(dev_key=args.dev_key, engine_id=args.engine_id, sites=sites, max_requests=1)
+    google_source = sources.Google(dev_key=args.dev_key, engine_id=args.engine_id, sites=sites, max_requests=1)
 
     collector = collect.Collector(google_source) \
                     .by_keywords([args.keyword])

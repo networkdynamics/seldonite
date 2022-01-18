@@ -11,7 +11,7 @@ import pandas as pd
 import pyspark.sql as psql
 
 # TODO make abstract
-class Source:
+class BaseSource:
     '''
     Base class for a source
 
@@ -71,7 +71,7 @@ class Source:
         return {}
 
 
-class CommonCrawl(Source):
+class CommonCrawl(BaseSource):
     '''
     Source that uses Spark to search CommonCrawl
     '''
@@ -122,7 +122,7 @@ class CommonCrawl(Source):
             job = CCIndexSparkJob()
             return job.run(spark_manager, query=query).toPandas()
 
-class NewsCrawl(Source):
+class NewsCrawl(BaseSource):
     '''
     Source that uses Spark to search CommonCrawl's NewsCrawl dataset
     '''
@@ -147,7 +147,7 @@ class NewsCrawl(Source):
         job = FetchNewsJob()
         return job.run(spark_manager, listings, url_only=url_only, keywords=self.keywords, limit=max_articles, sites=self.sites)
 
-class MongoDB(Source):
+class MongoDB(BaseSource):
     connection_string: str
     database: str
     collection: str
@@ -159,6 +159,9 @@ class MongoDB(Source):
         self.collection = collection
 
         self.can_url_black_list = True
+
+    def get_source_spark_conf(self):
+        return { 'spark.mongodb.input.uri': self.connection_string }
 
     def fetch(self, spark_manager: spark_tools.SparkManager, max_articles: int = None, url_only: bool = False):
         uri = utils.construct_db_uri(self.connection_string, self.database, self.collection)
@@ -188,7 +191,7 @@ class MongoDB(Source):
         return df.limit(max_articles) if max_articles else df
 
 
-class SearchEngineSource(Source):
+class SearchEngineSource(BaseSource):
 
     def __init__(self):
         super().__init__()

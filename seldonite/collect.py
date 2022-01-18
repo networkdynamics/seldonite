@@ -3,7 +3,7 @@ import os
 from gensim import models, corpora
 import pyspark.sql as psql
 
-from seldonite import filters
+from seldonite import filters, sources
 from seldonite.helpers import preprocess
 from seldonite.spark import spark_tools
 
@@ -14,6 +14,8 @@ class Collector:
 
     Can use a variety of search methods
     '''
+    source: sources.BaseSource
+
     def __init__(self, source, master_url=None, num_executors=1, executor_cores=16, executor_memory='160g', spark_conf={}):
         self.source = source
         self.spark_master_url = master_url
@@ -92,6 +94,13 @@ class Collector:
             archives = [ political_classifier_path ]
         else:
             archives = []
+
+        source_spark_conf = self.source.get_source_spark_conf()
+        for source_conf_key in source_spark_conf:
+            if source_conf_key not in self.spark_conf:
+                self.spark_conf[source_conf_key] = source_spark_conf[source_conf_key]
+            else:
+                raise NotImplementedError('This behaviour needs to be worked out')
 
         spark_builder = spark_tools.SparkBuilder(self.spark_master_url, use_bigdl=use_bigdl, archives=archives,
                                                  executor_cores=self.executor_cores, executor_memory=self.executor_memory, num_executors=self.num_executors,

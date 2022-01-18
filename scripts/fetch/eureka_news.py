@@ -1,13 +1,13 @@
 import argparse
 import json
 
-from seldonite import source
+from seldonite import sources
 from seldonite import collect
 
 
 def main(args):
 
-    eureka_source = source.Eureka(args.chrome_driver, args.eureka_url, username=args.username, password=args.password)
+    eureka_source = sources.Eureka(args.chrome_driver, args.eureka_url, username=args.username, password=args.password)
 
     collector = collect.Collector(eureka_source) \
                     .by_keywords([args.keyword])
