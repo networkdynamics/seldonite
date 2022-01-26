@@ -108,19 +108,27 @@ class Collector:
 
         return spark_builder
 
-    def _fetch(self, spark_manager):
+    def _fetch(self, spark_manager: spark_tools.SparkManager):
         df  = self.source.fetch(spark_manager, self.max_articles, url_only=self.url_only_val)
-        spark_session = spark_manager.get_spark_session()
+
         if self.political_filter:
             # create concat of title and text
-            df = df.withColumn('all_text', psql.functions.concat(df['title'], psql.functions.lit(' '), df['text']))
+            df = df.filter(df['title'].isNotNull())
+            df = df.filter(df['text'].isNotNull())
+            df = df.withColumn('all_text', psql.functions.concat(df['title'], psql.functions.lit('. '), df['text']))
+
             # tokenize text
+            spark_session = spark_manager.get_spark_session()
             tokens_df = filters.political.preprocess_text(spark_session, df.select('url', 'all_text'))
             df = df.join(tokens_df, 'url').drop('all_text')
 
             # drop invalid rows
             df = df.filter(df['tokens'].isNotNull())
             df = df.filter(psql.functions.size('tokens') > 0)
+
+            # increase num partitions ready for predict to avoid errors
+            num_partitions = df.rdd.getNumPartitions()
+            df = df.repartition(num_partitions * 4)
 
             # get political predictions
             pred_col = 'political_pred'

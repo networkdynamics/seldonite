@@ -25,6 +25,8 @@ class SparkBuilder():
         ]
         if use_mongo:
             packages.append('org.mongodb.spark:mongo-spark-connector_2.12:3.0.1')
+            self.conf['spark.mongodb.keep_alive_ms'] = '20000'
+            self.conf['spark.mongodb.input.localThreshold'] = '60'
 
         self.conf['spark.jars.packages'] = ','.join(packages)
 
