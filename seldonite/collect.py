@@ -112,6 +112,7 @@ class Collector:
         df  = self.source.fetch(spark_manager, self.max_articles, url_only=self.url_only_val)
 
         if self.political_filter:
+
             # create concat of title and text
             df = df.filter(df['title'].isNotNull())
             df = df.filter(df['text'].isNotNull())
@@ -128,12 +129,29 @@ class Collector:
 
             # increase num partitions ready for predict to avoid errors
             num_partitions = df.rdd.getNumPartitions()
-            df = df.repartition(num_partitions * 4)
+            df = df.repartition(num_partitions * 16)
 
             # get political predictions
-            pred_col = 'political_pred'
-            df = filters.political.spark_predict(df, 'tokens', pred_col)
-            df = df.drop('tokens')
+            num_partitions = min(1, int(df.count() / 100000))
+            df = df.withColumn('_row_id', psql.functions.monotonically_increasing_id())
+            # Using ntile() because monotonically_increasing_id is discontinuous across partitions
+            df = df.withColumn('_partition', psql.functions.ntile(num_partitions).over(psql.window.Window.orderBy(df._row_id))) 
+
+            pred_df = None
+            for i in range(num_partitions):
+                df_batch = df.filter(df._partition == i+1).drop('_row_id', '_partition')
+
+                pred_col = 'political_pred'
+                df_batch = filters.political.spark_predict(df_batch, 'tokens', pred_col)
+                df_batch = df_batch.drop('tokens')
+
+                if pred_df is None:
+                    pred_df = df_batch
+                else:
+                    pred_df = pred_df.union(df_batch)
+
+            df = pred_df
+
             # filter where prediction is higher than threshold
             df = df.where(f"{pred_col} > {self.political_filter_threshold}")
 
