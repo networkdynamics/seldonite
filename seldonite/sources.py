@@ -67,11 +67,61 @@ class BaseSource:
     def fetch(self, *args, **kwargs):
         raise NotImplementedError()
 
-    def get_source_spark_conf(self):
-        return {}
+    def _set_spark_options(self, spark_builder: spark_tools.SparkBuilder):
+        return
+
+    def _apply_default_filters(self, df, spark_manager, url_only, max_articles):
+        if url_only:
+            df = df.select('url')
+        else:
+            if self.start_date:
+                df = df.filter(df['publish_date'] >= self.start_date)
+
+            if self.end_date:
+                df = df.filter(df['publish_date'] <= self.end_date)
+
+            if self.sites:
+                spark = spark_manager.get_spark_session()
+
+                df.createOrReplaceTempView("temp")
+                clause = " OR ".join([f"url LIKE '%{site}%'" for site in self.sites])
+                df = spark.sql(f"SELECT text, title, url, publish_date FROM temp WHERE {clause}")
+
+        if self.url_black_list:
+            for blacklist_pattern in self.url_black_list:
+                like_pattern = blacklist_pattern.replace('*', '%')
+                df = df.where(~psql.functions.col('url').like(like_pattern))
+
+        return df.limit(max_articles) if max_articles else df
+
+class CSV(BaseSource):
+    def __init__(self, csv_path):
+        self.csv_path = csv_path
+
+    def fetch(self, spark_manager, max_articles=None, url_only=False):
+        spark = spark_manager.get_spark_session()
+
+        df = spark.read.csv(self.csv_path)
+
+        return self._apply_default_filters(df, spark_manager, url_only, max_articles)
 
 
-class CommonCrawl(BaseSource):
+class BaseCommonCrawl(BaseSource):
+    def _set_spark_options(self, spark_builder: spark_tools.SparkBuilder):
+
+        # anon creds for aws
+        spark_builder.set_conf('spark.hadoop.fs.s3a.aws.credentials.provider', 'org.apache.hadoop.fs.s3a.AnonymousAWSCredentialsProvider')
+        spark_builder.set_conf('spark.hadoop.fs.s3a.impl', 'org.apache.hadoop.fs.s3a.S3AFileSystem')
+
+        # add packages to allow pulling from AWS S3
+        packages = [
+            'com.amazonaws:aws-java-sdk-bundle:1.11.375',
+            'org.apache.hadoop:hadoop-aws:3.2.0'
+        ]
+        for package in packages:
+            spark_builder.add_package(package)
+
+class CommonCrawl(BaseCommonCrawl):
     '''
     Source that uses Spark to search CommonCrawl
     '''
@@ -122,7 +172,8 @@ class CommonCrawl(BaseSource):
             job = CCIndexSparkJob()
             return job.run(spark_manager, query=query).toPandas()
 
-class NewsCrawl(BaseSource):
+
+class NewsCrawl(BaseCommonCrawl):
     '''
     Source that uses Spark to search CommonCrawl's NewsCrawl dataset
     '''
@@ -160,8 +211,9 @@ class MongoDB(BaseSource):
 
         self.can_url_black_list = True
 
-    def get_source_spark_conf(self):
-        return { 'spark.mongodb.input.uri': self.connection_string }
+    def _set_spark_options(self, spark_builder: spark_tools.SparkBuilder):
+        spark_builder.add_package('org.mongodb.spark:mongo-spark-connector_2.12:3.0.1')
+        spark_builder.set_conf('spark.mongodb.input.uri', self.connection_string)
 
     def fetch(self, spark_manager: spark_tools.SparkManager, max_articles: int = None, url_only: bool = False):
         uri = utils.construct_db_uri(self.connection_string, self.database, self.collection)
@@ -169,26 +221,7 @@ class MongoDB(BaseSource):
         spark = spark_manager.get_spark_session()
         df = spark.read.format("mongo").option("uri", uri).load()
 
-        if url_only:
-            df = df.select('url')
-        else:
-            if self.start_date:
-                df = df.filter(df['publish_date'] >= self.start_date)
-
-            if self.end_date:
-                df = df.filter(df['publish_date'] <= self.end_date)
-
-            if self.sites:
-                df.createOrReplaceTempView("temp")
-                clause = " OR ".join([f"url LIKE '%{site}%'" for site in self.sites])
-                df = spark.sql(f"SELECT text, title, url, publish_date FROM temp WHERE {clause}")
-
-        if self.url_black_list:
-            for blacklist_pattern in self.url_black_list:
-                like_pattern = blacklist_pattern.replace('*', '%')
-                df = df.where(~psql.functions.col('url').like(like_pattern))
-
-        return df.limit(max_articles) if max_articles else df
+        return self._apply_default_filters(df, spark_manager, url_only, max_articles)
 
 
 class SearchEngineSource(BaseSource):

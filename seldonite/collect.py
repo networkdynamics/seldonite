@@ -16,13 +16,8 @@ class Collector:
     '''
     source: sources.BaseSource
 
-    def __init__(self, source, master_url=None, num_executors=1, executor_cores=16, executor_memory='160g', spark_conf={}):
+    def __init__(self, source):
         self.source = source
-        self.spark_master_url = master_url
-        self.num_executors = num_executors
-        self.executor_cores = executor_cores
-        self.executor_memory = executor_memory
-        self.spark_conf = spark_conf
 
         self.keywords = None
         self.url_only_val = False
@@ -72,41 +67,18 @@ class Collector:
         self.source.set_url_blacklist(url_wildcards)
         return self
 
-    # TODO split arguments into methods
-    def fetch(self):
-        '''
-        :return: Pandas dataframe
-        '''
-        self._check_args()
 
-        spark_builder = self._get_spark_builder()
-        with spark_builder.start_session() as spark_manager:
-            df = self._fetch(spark_manager)
-            df = df.toPandas()
+    def _set_spark_options(self, spark_builder: spark_tools.SparkBuilder):
 
-        return df
-
-    def _get_spark_builder(self):
-        use_bigdl = self.political_filter
         if self.political_filter:
+            spark_builder.use_bigdl()
+
             this_dir_path = os.path.dirname(os.path.abspath(__file__))
             political_classifier_path = os.path.join(this_dir_path, 'filters', 'pon_classifier.zip')
-            archives = [ political_classifier_path ]
-        else:
-            archives = []
+            pol_class_archive = f"{political_classifier_path}#pon_classifier"
+            spark_builder.add_archive(pol_class_archive)
 
-        source_spark_conf = self.source.get_source_spark_conf()
-        for source_conf_key in source_spark_conf:
-            if source_conf_key not in self.spark_conf:
-                self.spark_conf[source_conf_key] = source_spark_conf[source_conf_key]
-            else:
-                raise NotImplementedError('This behaviour needs to be worked out')
-
-        spark_builder = spark_tools.SparkBuilder(self.spark_master_url, use_bigdl=use_bigdl, archives=archives,
-                                                 executor_cores=self.executor_cores, executor_memory=self.executor_memory, num_executors=self.num_executors,
-                                                 spark_conf=self.spark_conf)
-
-        return spark_builder
+        self.source._set_spark_options(spark_builder)
 
     def _fetch(self, spark_manager):
         df  = self.source.fetch(spark_manager, self.max_articles, url_only=self.url_only_val)
@@ -134,19 +106,6 @@ class Collector:
         else:
             return df
 
-
-    def send_to_database(self, connection_string, database, table):
-        self._check_args()
-        spark_builder = self._get_spark_builder()
-        spark_builder.set_output_database(connection_string)
-        with spark_builder.start_session() as spark_manager:
-            df = self._fetch(spark_manager)
-            df.write \
-                .format("mongo") \
-                .mode("append") \
-                .option("database", database) \
-                .option("collection", table) \
-                .save()
 
     def _check_args(self):
         if self.url_only_val and self.political_filter:

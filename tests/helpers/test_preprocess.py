@@ -1,11 +1,11 @@
-from seldonite.helpers import preprocess
+from seldonite import nlp
 
 import pytest
 
 @pytest.mark.parametrize("docs, cleaned",
     [(["It's 2019, and we need #revolution"], [["need", "revolution"]])])
 def test_preprocess(docs, cleaned):
-    preprocessor = preprocess.Preprocessor()
+    preprocessor = nlp.NLP()
     processed_docs = list(preprocessor.preprocess(docs))
 
     assert len(processed_docs) == len(cleaned)

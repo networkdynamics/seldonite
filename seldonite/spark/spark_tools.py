@@ -7,9 +7,9 @@ from pyspark.sql import SQLContext, SparkSession
 
 
 class SparkBuilder():
-    def __init__(self, master, use_bigdl=True, use_mongo=True, name='seldonite_app', archives=[], executor_cores=16, executor_memory='160g', num_executors=1, spark_conf={}):
+    def __init__(self, master, use_mongo=True, name='seldonite_app', archives=[], executor_cores=16, executor_memory='160g', num_executors=1, spark_conf={}):
 
-        self.use_bigdl = use_bigdl
+        self.use_bigdl_flag = False
         # address of spark master node
         self.spark_master_url = master
 
@@ -18,27 +18,12 @@ class SparkBuilder():
         # add user set spark conf
         self.conf.update(spark_conf.items())
 
-        # add packages to allow pulling from AWS S3
-        packages = [
-            'com.amazonaws:aws-java-sdk-bundle:1.11.375',
-            'org.apache.hadoop:hadoop-aws:3.2.0'
-        ]
-        if use_mongo:
-            packages.append('org.mongodb.spark:mongo-spark-connector_2.12:3.0.1')
-
-        self.conf['spark.jars.packages'] = ','.join(packages)
-
-        # anon creds for aws
-        self.conf['spark.hadoop.fs.s3a.aws.credentials.provider'] = 'org.apache.hadoop.fs.s3a.AnonymousAWSCredentialsProvider'
-        self.conf['spark.hadoop.fs.s3a.impl'] = 'org.apache.hadoop.fs.s3a.S3AFileSystem'
-
         self.conf['spark.app.name'] = name
 
         if self.spark_master_url:
 
             # set spark container image
-            container_image = 'bigdl-k8s-spark-3.1.2-hadoop-3.2.0:latest'
-            self.conf['spark.kubernetes.container.image'] = container_image
+            self.conf['spark.kubernetes.container.image'] = 'bigdl-k8s-spark-3.1.2-hadoop-3.2.0:latest'
 
             # allow spark worker scaling
             dynamic_scaling = False
@@ -60,26 +45,34 @@ class SparkBuilder():
             this_dir_path = os.path.dirname(os.path.abspath(__file__))
             conda_package_path = os.path.join(this_dir_path, 'seldonite_spark_env.tar.gz')
             os.environ['PYSPARK_PYTHON'] = '/opt/spark/work-dir/environment/bin/python'
-            os.environ['BIGDL_CLASSPATH'] = '/opt/spark/work-dir/environment/lib/python3.7/site-packages/bigdl/share/dllib/lib/bigdl-dllib-spark_3.1.2-0.14.0-SNAPSHOT-jar-with-dependencies.jar:/opt/spark/work-dir/environment/lib/python3.7/site-packages/bigdl/share/orca/lib/bigdl-orca-spark_3.1.2-0.14.0-SNAPSHOT-jar-with-dependencies.jar'
-            spark_archives = f'{conda_package_path}#environment'
+            
+            self.archives = archives
+            self.archives.append(f'{conda_package_path}#environment')
 
-            for archive_path in archives:
-                dir_name = os.path.splitext(os.path.basename(archive_path))[0]
-                spark_archives += f",{archive_path}#{dir_name}"
-
-            self.conf['spark.archives'] = spark_archives
         else:
             os.environ['PYSPARK_PYTHON'] = 'python'
 
-    def set_source_database(self, connection_string):
-        self.conf["spark.mongodb.input.uri"] = connection_string
+    def use_bigdl(self):
+        self.use_bigdl_flag = True
 
-    def set_output_database(self, connection_string):
-        self.conf["spark.mongodb.output.uri"] = connection_string
+    def set_conf(self, key, value):
+        self.conf[key] = value
+
+    def add_package(self, package):
+        self.packages.append(package)
+
+    def add_archive(self, archive):
+        self.archives.append(archive)
 
     @contextmanager
     def start_session(self):
-        spark_manager = SparkManager(self.spark_master_url, self.use_bigdl, self.conf)
+        self.conf['spark.jars.packages'] = ','.join(self.packages)
+        self.conf['spark.archives'] = ','.join(self.archives)
+
+        if self.use_bigdl_flag:
+            os.environ['BIGDL_CLASSPATH'] = '/opt/spark/work-dir/environment/lib/python3.7/site-packages/bigdl/share/dllib/lib/bigdl-dllib-spark_3.1.2-0.14.0-SNAPSHOT-jar-with-dependencies.jar:/opt/spark/work-dir/environment/lib/python3.7/site-packages/bigdl/share/orca/lib/bigdl-orca-spark_3.1.2-0.14.0-SNAPSHOT-jar-with-dependencies.jar'
+
+        spark_manager = SparkManager(self.spark_master_url, self.use_bigdl_flag, self.conf)
         try:
             yield spark_manager
         finally:
