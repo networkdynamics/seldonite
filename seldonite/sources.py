@@ -1,4 +1,5 @@
 import datetime
+from email import header
 
 from seldonite.commoncrawl.cc_index_fetch_news import CCIndexFetchNewsJob
 from seldonite.commoncrawl.fetch_news import FetchNewsJob
@@ -29,6 +30,8 @@ class BaseSource:
 
         self.start_date = None
         self.end_date = None
+
+        self.sites = []
 
         self.can_lang_filter = True
         self.can_url_black_list = True
@@ -96,13 +99,13 @@ class BaseSource:
 
 class CSV(BaseSource):
     def __init__(self, csv_path):
+        super().__init__()
         self.csv_path = csv_path
 
     def fetch(self, spark_manager, max_articles=None, url_only=False):
         spark = spark_manager.get_spark_session()
-
-        df = spark.read.csv(self.csv_path)
-
+        df = spark.read.csv(self.csv_path, inferSchema=True, header=True, multiLine=True, escape='"')
+        df = df.select('title', 'text', 'publish_date', 'url')
         return self._apply_default_filters(df, spark_manager, url_only, max_articles)
 
 
@@ -242,7 +245,7 @@ class Google(SearchEngineSource):
         self.dev_key = dev_key
         self.engine_id = engine_id
 
-    def fetch(self, spark_manager, max_articles: int = None, url_only=False):
+    def fetch(self, spark_manager, max_articles: int = 100, url_only=False):
 
         service = gbuild("customsearch", "v1",
             developerKey=self.dev_key)
@@ -273,7 +276,10 @@ class Google(SearchEngineSource):
         # google custom search returns max of 100 results
         # each page contains max 10 results
 
-        num_pages = max_articles // 10
+        if max_articles:
+            num_pages = max_articles // 10
+        else:
+            num_pages = 10
 
         if url_only:
             df = pd.DataFrame(columns=['url'])
@@ -296,10 +302,10 @@ class Google(SearchEngineSource):
                 link = item['link']
                 # TODO convert for spark
                 if url_only:
-                    df.append({'url': link}, ignore_index=True)
+                    df = df.append({'url': link}, ignore_index=True)
                 else:
                     article = utils.link_to_article(link)
-                    df.append({ 'text': article.text, 'title': article.title, 'url': link, 'publish_date': article.publish_date }, ignore_index=True)
+                    df = df.append({ 'text': article.text, 'title': article.title, 'url': link, 'publish_date': article.publish_date }, ignore_index=True)
 
         spark_session = spark_manager.get_spark_session()
         return spark_session.createDataFrame(df)

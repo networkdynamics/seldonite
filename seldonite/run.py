@@ -14,21 +14,19 @@ class Runner():
         '''
         :return: Pandas dataframe
         '''
-        self._check_args()
 
         spark_builder = self._get_spark_builder()
         with spark_builder.start_session() as spark_manager:
-            df = self.input._process(spark_manager)
+            df = self.input.process(spark_manager)
             df = df.toPandas()
 
         return df
 
     def send_to_database(self, connection_string, database, table):
-        self._check_args()
         spark_builder = self._get_spark_builder()
         spark_builder.set_output_database(connection_string)
         with spark_builder.start_session() as spark_manager:
-            df = self.input._process(spark_manager)
+            df = self.input.process(spark_manager)
             df.write \
                 .format("mongo") \
                 .mode("append") \
@@ -37,6 +35,9 @@ class Runner():
                 .save()
 
     def _get_spark_builder(self):
-        spark_builder = spark_tools.SparkBuilder(self.spark_master_url, use_bigdl=use_bigdl, archives=archives,
-                                                 executor_cores=self.executor_cores, executor_memory=self.executor_memory, num_executors=self.num_executors,
-                                                 spark_conf=self.spark_conf)
+        spark_builder = spark_tools.SparkBuilder(self.spark_master_url, executor_cores=self.executor_cores, executor_memory=self.executor_memory, 
+                                                 num_executors=self.num_executors, spark_conf=self.spark_conf)
+
+        self.input._set_spark_options(spark_builder)
+
+        return spark_builder

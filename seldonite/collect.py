@@ -1,10 +1,8 @@
 import os
 
-from gensim import models, corpora
 import pyspark.sql as psql
 
 from seldonite import filters, sources
-from seldonite.helpers import preprocess
 from seldonite.spark import spark_tools
 
 
@@ -80,7 +78,8 @@ class Collector:
 
         self.source._set_spark_options(spark_builder)
 
-    def _fetch(self, spark_manager):
+    def process(self, spark_manager):
+        self._check_args()
         df  = self.source.fetch(spark_manager, self.max_articles, url_only=self.url_only_val)
         spark_session = spark_manager.get_spark_session()
         if self.political_filter:
@@ -110,47 +109,3 @@ class Collector:
     def _check_args(self):
         if self.url_only_val and self.political_filter:
             raise ValueError('Cannot check political articles and get only URLs. Please remove one of the options.')
-
-    def find_topics(self, batch_size=1000):
-        articles = self.fetch()
-        prepro = preprocess.Preprocessor()
-
-        more_articles = True
-        model = None
-        dictionary = None
-        while more_articles:
-            batch_idx = 0
-            content_batch = []
-
-            while batch_idx < batch_size:
-                try:
-                    article = next(articles)
-                    content_batch.append(article.text)
-                    batch_idx += 1
-                except StopIteration:
-                    more_articles = False
-                    break
-
-            # TODO add bigrams
-            docs = list(prepro.preprocess(content_batch))
-
-            if not dictionary:
-                # TODO consider using hashdictionary
-                dictionary = corpora.Dictionary(docs)
-
-                no_below = max(1, batch_size // 100)
-                dictionary.filter_extremes(no_below=no_below, no_above=0.9)
-            
-            corpus = [dictionary.doc2bow(doc) for doc in docs]
-
-            if not model:
-                # need to 'load' the dictionary
-                dictionary[0]
-                # TODO use ldamulticore for speed
-                model = models.LdaModel(corpus, 
-                                        id2word=dictionary.id2token, 
-                                        num_topics=10)
-            else:
-                model.update(corpus)
-
-        return model, dictionary

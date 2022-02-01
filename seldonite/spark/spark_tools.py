@@ -7,14 +7,14 @@ from pyspark.sql import SQLContext, SparkSession
 
 
 class SparkBuilder():
-    def __init__(self, master, use_mongo=True, name='seldonite_app', archives=[], executor_cores=16, executor_memory='160g', num_executors=1, spark_conf={}):
+    def __init__(self, master, name='seldonite_app', archives=[], executor_cores=16, executor_memory='160g', num_executors=1, spark_conf={}):
 
         self.use_bigdl_flag = False
         # address of spark master node
         self.spark_master_url = master
-
+        self.archives = archives
+        self.packages = []
         self.conf = {}
-
         # add user set spark conf
         self.conf.update(spark_conf.items())
 
@@ -46,7 +46,6 @@ class SparkBuilder():
             conda_package_path = os.path.join(this_dir_path, 'seldonite_spark_env.tar.gz')
             os.environ['PYSPARK_PYTHON'] = '/opt/spark/work-dir/environment/bin/python'
             
-            self.archives = archives
             self.archives.append(f'{conda_package_path}#environment')
 
         else:

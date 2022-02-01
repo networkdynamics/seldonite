@@ -5,6 +5,8 @@ data/*
 *.tar.gz
 *.zip
 seldonite/filters/pon_classifier*
+tests/fixtures/*.h5
+tests/fixtures/*.json
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
