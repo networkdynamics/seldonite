@@ -1,4 +1,6 @@
 from typing import List
+from pyspark.sql.functions import udf
+from pyspark.sql.types import StringType
 
 import pyspark.sql as psql
 
@@ -37,26 +39,19 @@ class Analyze():
             with spark_builder.start_session() as spark_manager:
                 df = self.collector._fetch(spark_manager)
 
-                df = df.withColumn('all_text', psql.functions.concat(df['headline'], psql.functions.lit(' '), df['short_description']))
+                df = df.withColumn('all_text', psql.functions.concat(df['title'], psql.functions.lit(' '), df['text']))
 
-                locations = []   
-
-                for i in df.rdd.collect():
-                    places = GeoText(i.all_text)
-                    if not places.cities:
-                            locations.append(['missing'])
+                def countries(x):
+                    country_list = GeoText(x).countries
+                    liste = []
+                    if not country_list:
+                        return []
                     else:
-                        locations.append(places.cities)
+                        for country in country_list:
+                            liste.append(country)
+                        return liste
 
-                with_country = []
+            udfCountry = udf(countries, StringType())
+            df = df.withColumn('countries', udfCountry(df.all_text))
 
-                for i in locations:
-                    if i == ['missing']:
-                        with_country.append("missing")
-                    else:
-                        locator = geopy.geocoders.Nominatim(user_agent="MyCoder")
-                        location = locator.geocode(i)
-                        country = str(location).rsplit(', ', 1)[1]
-                        with_country.append(country)
-
-            return dict((i, with_country.count(i)) for i in with_country)
+            #TODO: need a function to count the country proportions
