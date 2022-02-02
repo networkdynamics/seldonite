@@ -20,6 +20,10 @@ class SparkBuilder():
 
         self.conf['spark.app.name'] = name
 
+        # specify pod size
+        self.conf['spark.executor.cores'] = str(executor_cores)
+        self.conf['spark.executor.memory'] = executor_memory
+
         if self.spark_master_url:
 
             # set spark container image
@@ -34,10 +38,6 @@ class SparkBuilder():
             else:
                 self.conf['spark.executor.instances'] = str(num_executors)
 
-            # specify pod size
-            self.conf['spark.executor.cores'] = str(executor_cores)
-            self.conf['spark.executor.memory'] = executor_memory
-
             # add labels to pods
             self.conf['spark.kubernetes.executor.label.app'] = 'seldonite'
 
@@ -49,6 +49,8 @@ class SparkBuilder():
             self.archives.append(f'{conda_package_path}#environment')
 
         else:
+            self.conf['spark.executor.instances'] = 1
+
             os.environ['PYSPARK_PYTHON'] = 'python'
 
     def use_bigdl(self):
