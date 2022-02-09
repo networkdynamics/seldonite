@@ -1,6 +1,6 @@
 from typing import List
-from pyspark.sql.functions import udf
-from pyspark.sql.types import StringType
+from pyspark.sql.functions import udf, lit, explode
+from pyspark.sql.types import ArrayType, StringType
 
 import pyspark.sql as psql
 
@@ -51,7 +51,12 @@ class Analyze():
                             liste.append(country)
                         return liste
 
-            udfCountry = udf(countries, StringType())
-            df = df.withColumn('countries', udfCountry(df.all_text))
+                udfCountry = udf(countries, ArrayType(StringType(), True))
+                df = df.withColumn('countries', udfCountry(df.all_text))
 
-            #TODO: need a function to count the country proportions
+                
+                key = df.select(explode(df.countries).alias("key"))
+                df_with_key = df.withColumn("key", lit(key))
+
+                # TODO: what should I return?
+                key.groupBy(col("key")).count().show()
