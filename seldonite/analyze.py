@@ -1,5 +1,6 @@
 from typing import List
 from pyspark.sql.functions import *
+import pyspark.sql.functions as sfuncs
 from pyspark.sql.types import ArrayType, StringType, MapType, IntegerType
 
 import pyspark.sql as psql
@@ -59,7 +60,7 @@ class Analyze():
                 df_with_key = df.withColumn("key", lit(key))
 
                 # TODO: what should I return?
-                key.groupBy(col("key")).count().show()
+                key.groupBy(col("key")).count()
         
 
         def keywords_over_time_delal(self, year):
@@ -72,28 +73,16 @@ class Analyze():
 
                 df = df.withColumn('all_text', psql.functions.concat(df['title'], psql.functions.lit(' '), df['text']))
 
-                year_date = year(col("date")).alias("date_year")
-                month_date = month(col("date")).alias("date_month")
-                sparkDF = sparkDF.withColumn('date_year', lit(year_date))
-                sparkDF = sparkDF.withColumn('date_month', lit(month_date))
+                year_date = sfuncs.year(col("date")).alias("date_year")
+                month_date = sfuncs.month(col("date")).alias("date_month")
+                df = df.withColumn('date_year', lit(year_date))
+                df = df.withColumn('date_month', lit(month_date))
 
-                d = {}
 
-                for i in keywords:
-                    d[i] = 0
+                for keyword in keywords:
+                    df = df.withColumn(keyword, sfuncs.col('all_text').like(f"%{keyword}%"))
 
-                def count_keywords(x):
-                    # key events
-                    keywords = ["Trump"]
-                    
-                    for event in keywords:
-                        if event in x:
-                            
-                            d[event] += 1
-                    return d
+                df = df.groupby('date_year', 'date_month').count(*keywords)
 
-                udfKeywords = udf(count_keywords, MapType(StringType(), IntegerType()))
-                df = sparkDF.withColumn('counts', udfKeywords(sparkDF.all_text))
-
-                # TODO: what should I return?
+                return df
                 
