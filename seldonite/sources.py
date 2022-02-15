@@ -281,10 +281,7 @@ class Google(SearchEngineSource):
         else:
             num_pages = 10
 
-        if url_only:
-            df = pd.DataFrame(columns=['url'])
-        else:
-            df = pd.DataFrame(columns=['title', 'text', 'url', 'publish_date'])
+        articles = []
 
         for page_num in range(num_pages):
             results = method.list(
@@ -302,10 +299,10 @@ class Google(SearchEngineSource):
                 link = item['link']
                 # TODO convert for spark
                 if url_only:
-                    df = df.append({'url': link}, ignore_index=True)
+                    articles.append(psql.Row(url=link))
                 else:
                     article = utils.link_to_article(link)
-                    df = df.append({ 'text': article.text, 'title': article.title, 'url': link, 'publish_date': article.publish_date }, ignore_index=True)
+                    articles.append(psql.Row(text=article.text, title=article.title, url=link, publish_date=article.publish_date))
 
         spark_session = spark_manager.get_spark_session()
-        return spark_session.createDataFrame(df)
+        return spark_session.createDataFrame(articles)

@@ -78,7 +78,7 @@ class Collector:
 
         self.source._set_spark_options(spark_builder)
 
-    def process(self, spark_manager):
+    def _process(self, spark_manager):
         self._check_args()
         df  = self.source.fetch(spark_manager, self.max_articles, url_only=self.url_only_val)
         spark_session = spark_manager.get_spark_session()

@@ -1,6 +1,7 @@
 name: seldonite
 channels:
   - conda-forge
+  - huggingface
 dependencies:
   - python=3.7
   - conda-build
@@ -11,6 +12,8 @@ dependencies:
   - selenium
   - spacy
   - nltk
+  - networkx
+  - transformers
   - lemminflect>=0.2.1
   - gensim
   - google-api-python-client
@@ -30,3 +33,4 @@ dependencies:
     - tensorflow>=2.1.0
     - bigdl-spark3
     - spark-nlp
+    - NewsSentiment

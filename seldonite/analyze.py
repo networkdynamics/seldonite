@@ -10,17 +10,18 @@ class Analyze():
     def __init__(self, collector):
         self.collector = collector
 
-    def keywords_over_time(self, keywords: List[str]):
-        self.collector._check_args()
 
-        spark_builder = self.collector._get_spark_builder()
-        with spark_builder.start_session() as spark_manager:
-            df = self.collector._fetch(spark_manager)
-            
+    def process(self, spark_manager):
+        df = self.collector.process(spark_manager)
+
+        df = self.collector._fetch(spark_manager)
+        if self.keywords_over_time_flag:
             df = df.withColumn('all_text', psql.functions.concat(df['title'], psql.functions.lit(' '), df['text']))
             for keyword in keywords:
                 df.withColumn(keyword, df['all_text'].like(f"%{keyword}%"))
 
-            #df.groupby
+    def keywords_over_time(self, keywords: List[str]):
+        self.keywords_over_time_flag = True
+        self.keywords = keywords
 
-        return df
+        return self

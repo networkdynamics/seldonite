@@ -1,3 +1,5 @@
+from contextlib import contextmanager
+
 from seldonite.spark import spark_tools
 
 class Runner():
@@ -10,14 +12,25 @@ class Runner():
         self.executor_memory = executor_memory
         self.spark_conf = spark_conf
 
+    def get_obj(self):
+        with self.start_and_process() as obj:
+            return obj
+        
+    @contextmanager
+    def start_and_process(self):
+        spark_builder = self._get_spark_builder()
+        with spark_builder.start_session() as spark_manager:
+            df = self.input._process(spark_manager)
+            yield df
+
+        return df
+
     def to_pandas(self):
         '''
         :return: Pandas dataframe
         '''
 
-        spark_builder = self._get_spark_builder()
-        with spark_builder.start_session() as spark_manager:
-            df = self.input.process(spark_manager)
+        with self.start_and_process() as df:
             df = df.toPandas()
 
         return df
@@ -26,7 +39,7 @@ class Runner():
         spark_builder = self._get_spark_builder()
         spark_builder.set_output_database(connection_string)
         with spark_builder.start_session() as spark_manager:
-            df = self.input.process(spark_manager)
+            df = self.input._process(spark_manager)
             df.write \
                 .format("mongo") \
                 .mode("append") \
