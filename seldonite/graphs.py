@@ -33,6 +33,7 @@ class Graph(base.BaseStage):
 
         # explode tfidf again to get edges
         article_nodes_df = nodes_df.where(sfuncs.col('text_top_n').isNotNull() & sfuncs.col('title_top_n').isNotNull())
+        article_nodes_df.cache()
 
         text_edges_df = article_nodes_df.select('id', sfuncs.explode(sfuncs.col('text_top_n')).alias('text')) \
                                         .select(sfuncs.col('id').alias('text_id'), sfuncs.col('text.word').alias('text_word'), sfuncs.col('text.value').alias('text_value'))
@@ -44,6 +45,7 @@ class Graph(base.BaseStage):
                                       on=((text_edges_df['text_id'] == title_edges_df['title_id']) & (text_edges_df['text_word'] == title_edges_df['title_word'])), 
                                       how='full') \
                                 .select(sfuncs.coalesce('title_id', 'text_id').alias('id1'), sfuncs.coalesce('text_word', 'title_word').alias('word'), 'text_value', 'title_value')
+        edges_df.cache()
 
         # divide each weight by scalar
         edges_df = edges_df.select('id1', 'word', (sfuncs.col('title_value') / Z1).alias('title_value'), (sfuncs.col('text_value') / Z2).alias('text_value'))
@@ -58,7 +60,7 @@ class Graph(base.BaseStage):
                                 .select('id1', sfuncs.col('id').alias('id2'), 'weight')
         
         # drop edges with weight 0
-        edges_df = edges_df.where('weight' > 0)
+        edges_df = edges_df.where(sfuncs.col('weight') > 0)
 
         # get node values
         # node values for word nodes
