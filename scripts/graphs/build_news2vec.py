@@ -7,6 +7,7 @@ from seldonite import graphs, sources, collect, nlp, run
 def main(args):
     source = sources.CSV(args.input)
     collector = collect.Collector(source)
+    collector.limit_num_articles(10)
 
     nl_processor = nlp.NLP(collector)
     nl_processor.top_tfidf(10)
@@ -18,7 +19,7 @@ def main(args):
     G, map_df = runner.get_obj()
 
     nx.write_weighted_edgelist(G, args.graph)
-    map_df.to_csv(args.map)
+    map_df.to_csv(args.map, index=False)
 
 if __name__ == '__main__':
 

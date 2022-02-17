@@ -56,6 +56,9 @@ class Graph(base.BaseStage):
                                 .select('id', 'word')
         edges_df = word_edges_df.join(word_nodes_df, on='word') \
                                 .select('id1', sfuncs.col('id').alias('id2'), 'weight')
+        
+        # drop edges with weight 0
+        edges_df = edges_df.where('weight' > 0)
 
         # get node values
         # node values for word nodes
@@ -72,21 +75,23 @@ class Graph(base.BaseStage):
                                         .agg(sfuncs.concat_ws(",", sfuncs.collect_list(sfuncs.col('word'))).alias('top_tfidf'))
 
         article_nodes_df = article_nodes_df.join(article_node_values_df, 'id')
+        article_nodes_df = article_nodes_df.drop('word')
 
         # get article length
-        article_nodes_df.withColumn('num_words', sfuncs.size('title_tokens') + sfuncs.size('text_tokens'))
-        article_nodes_df.withColumn('num_words_ord', sfuncs.when((sfuncs.col('num_words') >= 0) & (sfuncs.col('num_words')  <= 200), 'wc200') \
-                                                           .when((sfuncs.col('num_words') > 200) & (sfuncs.col('num_words') <= 500), 'wc500') \
-                                                           .when((sfuncs.col('num_words') > 500) & (sfuncs.col('num_words') <= 1000), 'wc1000') \
-                                                           .when((sfuncs.col('num_words') > 1000) & (sfuncs.col('num_words') <= 2000), 'wc2000') \
-                                                           .when((sfuncs.col('num_words') > 2000) & (sfuncs.col('num_words') <= 3000), 'wc3000') \
-                                                           .when((sfuncs.col('num_words') > 3000) & (sfuncs.col('num_words') <= 5000), 'wc5000') \
-                                                           .when(sfuncs.col('num_words') > 5000, 'wcmax'))
+        article_nodes_df = article_nodes_df.withColumn('num_words', sfuncs.size('title_tokens') + sfuncs.size('text_tokens'))
+        article_nodes_df = article_nodes_df.withColumn('num_words_ord', sfuncs.when((sfuncs.col('num_words') >= 0) & (sfuncs.col('num_words')  <= 200), 'wc200') \
+                                                                              .when((sfuncs.col('num_words') > 200) & (sfuncs.col('num_words') <= 500), 'wc500') \
+                                                                              .when((sfuncs.col('num_words') > 500) & (sfuncs.col('num_words') <= 1000), 'wc1000') \
+                                                                              .when((sfuncs.col('num_words') > 1000) & (sfuncs.col('num_words') <= 2000), 'wc2000') \
+                                                                              .when((sfuncs.col('num_words') > 2000) & (sfuncs.col('num_words') <= 3000), 'wc3000') \
+                                                                              .when((sfuncs.col('num_words') > 3000) & (sfuncs.col('num_words') <= 5000), 'wc5000') \
+                                                                              .when(sfuncs.col('num_words') > 5000, 'wcmax'))
 
         # get article sentiment
         def get_sentiment(rows):
             sentiment_analysis = transformers.pipeline("sentiment-analysis",model="siebert/sentiment-roberta-large-english")
-            results = sentiment_analysis([row['title'] for row in rows], return_tensors="pt")
+            rows = list(rows)
+            results = sentiment_analysis([row['title'] for row in rows])
 
             for row, result in zip(rows, results):
                 label = result['label']
@@ -108,28 +113,28 @@ class Graph(base.BaseStage):
 
                 tmp = row.asDict()
                 tmp['sentiment'] = senti
-                yield psql.Row(**tmp)
+                new_row = psql.Row(**tmp)
+                yield new_row
 
-
-        article_node_df = article_nodes_df.rdd.mapPartitions(get_sentiment)
+        article_nodes_df = article_nodes_df.rdd.mapPartitions(get_sentiment).toDF()
 
         # get month 
-        article_node_df = article_node_df.withColumn('month', sfuncs.concat(sfuncs.lit('m_'), sfuncs.month('publish_date')))
+        article_nodes_df = article_nodes_df.withColumn('month', sfuncs.concat(sfuncs.lit('m_'), sfuncs.month('publish_date')))
         # get day of month
-        article_node_df = article_node_df.withColumn('day_of_month', sfuncs.concat(sfuncs.lit('d_'), sfuncs.dayofmonth('publish_date')))
+        article_nodes_df = article_nodes_df.withColumn('day_of_month', sfuncs.concat(sfuncs.lit('d_'), sfuncs.dayofmonth('publish_date')))
         # get of week
-        article_node_df = article_node_df.withColumn('day_of_week', sfuncs.concat(sfuncs.lit('wd_'), sfuncs.dayofweek('publish_date')))
+        article_nodes_df = article_nodes_df.withColumn('day_of_week', sfuncs.concat(sfuncs.lit('wd_'), sfuncs.dayofweek('publish_date')))
 
         # compile into column
-        article_node_df = article_node_df.withColumn('value', sfuncs.concat_ws(',', 
-                                                                               sfuncs.col('top_tfidf'), 
-                                                                               sfuncs.col('num_words_ord'), 
-                                                                               sfuncs.col('sentiment'), 
-                                                                               sfuncs.col('month'), 
-                                                                               sfuncs.col('day_of_month'), 
-                                                                               sfuncs.col('day_of_week')))
+        article_nodes_df = article_nodes_df.withColumn('value', sfuncs.concat_ws(',', 
+                                                                                 sfuncs.col('top_tfidf'), 
+                                                                                 sfuncs.col('num_words_ord'), 
+                                                                                 sfuncs.col('sentiment'), 
+                                                                                 sfuncs.col('month'), 
+                                                                                 sfuncs.col('day_of_month'), 
+                                                                                 sfuncs.col('day_of_week')))
 
-        node_map_df = word_nodes_df.union(article_nodes_df)
+        node_map_df = word_nodes_df.union(article_nodes_df.select('id', 'value'))
 
         # convert to networkx format and collect
         edges = edges_df.rdd.map(lambda row: (row['id1'], row['id2'], row['weight'])).collect()
