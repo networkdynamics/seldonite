@@ -37,7 +37,7 @@ class Runner():
 
     def send_to_database(self, connection_string, database, table):
         spark_builder = self._get_spark_builder()
-        spark_builder.set_output_database(connection_string)
+        spark_builder.set_conf('spark.mongodb.output.uri', connection_string)
         with spark_builder.start_session() as spark_manager:
             df = self.input._process(spark_manager)
             df.write \

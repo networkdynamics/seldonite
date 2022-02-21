@@ -5,17 +5,21 @@ Define a news source, set your search method, and create event representations.
 
 Usage (WIP):
 ```python
-from seldonite import source, collect, represent
+from seldonite import source, collect, analyze
 
 sites = ['cbc.ca', 'bbc.com']
 source = source.CommonCrawl(sites)
 
-collector = collect.Collector(source)
-collector.by_keywords(['afghanistan', 'withdrawal'])
-news = collector.fetch()
+collector = collect.Collector(source) \
+    .by_keywords(['afghanistan', 'withdrawal'])
 
-timeline = represent.Timeline(news)
-timeline.show()
+analysis = analyze.Analyze(collector) \
+    .timeline()
+
+timeline = runner.Runner(analysis)
+    .to_pandas()
+
+timeline.plot()
 ```
 
 Please see the wiki for more detail on sources and methods
