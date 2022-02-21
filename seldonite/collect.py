@@ -132,7 +132,8 @@ class Collector:
             df = df.repartition(num_partitions * 16)
 
             # get political predictions
-            num_partitions = min(1, int(df.count() / 100000))
+            num_partitions = max(1, int(df.count() / 100000))
+
             df = df.withColumn('_row_id', psql.functions.monotonically_increasing_id())
             # Using ntile() because monotonically_increasing_id is discontinuous across partitions
             df = df.withColumn('_partition', psql.functions.ntile(num_partitions).over(psql.window.Window.orderBy(df._row_id))) 
