@@ -1,4 +1,5 @@
 import datetime
+from email import header
 
 from seldonite.commoncrawl.cc_index_fetch_news import CCIndexFetchNewsJob
 from seldonite.commoncrawl.fetch_news import FetchNewsJob
@@ -29,6 +30,8 @@ class BaseSource:
 
         self.start_date = None
         self.end_date = None
+
+        self.sites = []
 
         self.can_lang_filter = True
         self.can_url_black_list = True
@@ -67,11 +70,61 @@ class BaseSource:
     def fetch(self, *args, **kwargs):
         raise NotImplementedError()
 
-    def get_source_spark_conf(self):
-        return {}
+    def _set_spark_options(self, spark_builder: spark_tools.SparkBuilder):
+        return
+
+    def _apply_default_filters(self, df, spark_manager, url_only, max_articles):
+        if url_only:
+            df = df.select('url')
+        else:
+            if self.start_date:
+                df = df.filter(df['publish_date'] >= self.start_date)
+
+            if self.end_date:
+                df = df.filter(df['publish_date'] <= self.end_date)
+
+            if self.sites:
+                spark = spark_manager.get_spark_session()
+
+                df.createOrReplaceTempView("temp")
+                clause = " OR ".join([f"url LIKE '%{site}%'" for site in self.sites])
+                df = spark.sql(f"SELECT text, title, url, publish_date FROM temp WHERE {clause}")
+
+        if self.url_black_list:
+            for blacklist_pattern in self.url_black_list:
+                like_pattern = blacklist_pattern.replace('*', '%')
+                df = df.where(~psql.functions.col('url').like(like_pattern))
+
+        return df.limit(max_articles) if max_articles else df
+
+class CSV(BaseSource):
+    def __init__(self, csv_path):
+        super().__init__()
+        self.csv_path = csv_path
+
+    def fetch(self, spark_manager, max_articles=None, url_only=False):
+        spark = spark_manager.get_spark_session()
+        df = spark.read.csv(self.csv_path, inferSchema=True, header=True, multiLine=True, escape='"')
+        df = df.select('title', 'text', 'publish_date', 'url')
+        return self._apply_default_filters(df, spark_manager, url_only, max_articles)
 
 
-class CommonCrawl(BaseSource):
+class BaseCommonCrawl(BaseSource):
+    def _set_spark_options(self, spark_builder: spark_tools.SparkBuilder):
+
+        # anon creds for aws
+        spark_builder.set_conf('spark.hadoop.fs.s3a.aws.credentials.provider', 'org.apache.hadoop.fs.s3a.AnonymousAWSCredentialsProvider')
+        spark_builder.set_conf('spark.hadoop.fs.s3a.impl', 'org.apache.hadoop.fs.s3a.S3AFileSystem')
+
+        # add packages to allow pulling from AWS S3
+        packages = [
+            'com.amazonaws:aws-java-sdk-bundle:1.11.375',
+            'org.apache.hadoop:hadoop-aws:3.2.0'
+        ]
+        for package in packages:
+            spark_builder.add_package(package)
+
+class CommonCrawl(BaseCommonCrawl):
     '''
     Source that uses Spark to search CommonCrawl
     '''
@@ -122,7 +175,8 @@ class CommonCrawl(BaseSource):
             job = CCIndexSparkJob()
             return job.run(spark_manager, query=query).toPandas()
 
-class NewsCrawl(BaseSource):
+
+class NewsCrawl(BaseCommonCrawl):
     '''
     Source that uses Spark to search CommonCrawl's NewsCrawl dataset
     '''
@@ -160,8 +214,9 @@ class MongoDB(BaseSource):
 
         self.can_url_black_list = True
 
-    def get_source_spark_conf(self):
-        return { 'spark.mongodb.input.uri': self.connection_string }
+    def _set_spark_options(self, spark_builder: spark_tools.SparkBuilder):
+        spark_builder.add_package('org.mongodb.spark:mongo-spark-connector_2.12:3.0.1')
+        spark_builder.set_conf('spark.mongodb.input.uri', self.connection_string)
 
     def fetch(self, spark_manager: spark_tools.SparkManager, max_articles: int = None, url_only: bool = False):
         uri = utils.construct_db_uri(self.connection_string, self.database, self.collection)
@@ -177,26 +232,7 @@ class MongoDB(BaseSource):
 
         df = df.repartition(4 * spark_manager.get_num_cpus())
 
-        if url_only:
-            df = df.select('url')
-        else:
-            if self.start_date:
-                df = df.filter(df['publish_date'] >= self.start_date)
-
-            if self.end_date:
-                df = df.filter(df['publish_date'] <= self.end_date)
-
-            if self.sites:
-                df.createOrReplaceTempView("temp")
-                clause = " OR ".join([f"url LIKE '%{site}%'" for site in self.sites])
-                df = spark.sql(f"SELECT text, title, url, publish_date FROM temp WHERE {clause}")
-
-        if self.url_black_list:
-            for blacklist_pattern in self.url_black_list:
-                like_pattern = blacklist_pattern.replace('*', '%')
-                df = df.where(~psql.functions.col('url').like(like_pattern))
-
-        return df.limit(max_articles) if max_articles else df
+        return self._apply_default_filters(df, spark_manager, url_only, max_articles)
 
 
 class SearchEngineSource(BaseSource):
@@ -217,7 +253,7 @@ class Google(SearchEngineSource):
         self.dev_key = dev_key
         self.engine_id = engine_id
 
-    def fetch(self, spark_manager, max_articles: int = None, url_only=False):
+    def fetch(self, spark_manager, max_articles: int = 100, url_only=False):
 
         service = gbuild("customsearch", "v1",
             developerKey=self.dev_key)
@@ -248,12 +284,12 @@ class Google(SearchEngineSource):
         # google custom search returns max of 100 results
         # each page contains max 10 results
 
-        num_pages = max_articles // 10
-
-        if url_only:
-            df = pd.DataFrame(columns=['url'])
+        if max_articles:
+            num_pages = max_articles // 10
         else:
-            df = pd.DataFrame(columns=['title', 'text', 'url', 'publish_date'])
+            num_pages = 10
+
+        articles = []
 
         for page_num in range(num_pages):
             results = method.list(
@@ -271,10 +307,10 @@ class Google(SearchEngineSource):
                 link = item['link']
                 # TODO convert for spark
                 if url_only:
-                    df.append({'url': link}, ignore_index=True)
+                    articles.append(psql.Row(url=link))
                 else:
                     article = utils.link_to_article(link)
-                    df.append({ 'text': article.text, 'title': article.title, 'url': link, 'publish_date': article.publish_date }, ignore_index=True)
+                    articles.append(psql.Row(text=article.text, title=article.title, url=link, publish_date=article.publish_date))
 
         spark_session = spark_manager.get_spark_session()
-        return spark_session.createDataFrame(df)
+        return spark_session.createDataFrame(articles)

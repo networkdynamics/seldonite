@@ -2,24 +2,21 @@ import argparse
 import json
 
 from seldonite import sources
-from seldonite import collect
+from seldonite import collect, run
 
 
 def main(args):
 
     sites = [args.site]
-    google_source = sources.Google(dev_key=args.dev_key, engine_id=args.engine_id, sites=sites, max_requests=1)
+    google_source = sources.Google(dev_key=args.dev_key, engine_id=args.engine_id)
 
     collector = collect.Collector(google_source) \
+                    .on_sites([args.site]) \
                     .by_keywords([args.keyword])
-    articles = collector.fetch()
+    runner = run.Runner(collector)
+    df = runner.to_pandas()
 
-    json_articles = json.dumps([article.to_dict() for article in articles], indent=2)
-    if args.out:
-        with open(args.out, 'w') as f:
-            f.write(json_articles)
-    else:
-        print(json_articles)
+    df.to_csv(args.out)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()

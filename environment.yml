@@ -1,6 +1,8 @@
 name: seldonite
 channels:
   - conda-forge
+  - huggingface
+  - pytorch
 dependencies:
   - python=3.7
   - conda-build
@@ -10,9 +12,14 @@ dependencies:
   - pyspark==3.1.2
   - selenium
   - spacy
+  - nltk
+  - networkx
+  - transformers
+  - pytorch==1.9.0
+  - lemminflect>=0.2.1
   - gensim
   - google-api-python-client
-  - pandas==1.0.3
+  - pandas==1.2.5
   - numpy==1.21.4
   - six==1.16.0
   - py4j==0.10.9
@@ -21,9 +28,9 @@ dependencies:
   - pip
   - pip:
     - -e .
-    - warcio
-    - ray[default]
+    - warcio==1.7.4
+    - ray
     - pyzmq
     - tensorflow>=2.1.0
-    - https://downloads.sourceforge.net/project/analytics-zoo/orca-py-spark3/bigdl_orca_spark3-0.14.0b20211215-py3-none-manylinux1_x86_64.whl
-    - https://downloads.sourceforge.net/project/analytics-zoo/dllib-py-spark3/bigdl_dllib_spark3-0.14.0b20211215-py3-none-manylinux1_x86_64.whl
+    - bigdl-spark3
+    - spark-nlp
