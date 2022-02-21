@@ -103,15 +103,8 @@ class Collector:
             df = df.repartition(num_partitions * 16)
 
             # get political predictions
-            num_partitions = max(1, int(df.count() / 100000))
-
-            df = df.withColumn('_row_id', psql.functions.monotonically_increasing_id())
-            # Using ntile() because monotonically_increasing_id is discontinuous across partitions
-            df = df.withColumn('_partition', psql.functions.ntile(num_partitions).over(psql.window.Window.orderBy(df._row_id))) 
-
             pred_df = None
-            for i in range(num_partitions):
-                df_batch = df.filter(df._partition == i+1).drop('_row_id', '_partition')
+            for df_batch in spark_tools.batch(df, max=100000):
 
                 pred_col = 'political_pred'
                 df_batch = filters.political.spark_predict(df_batch, 'tokens', pred_col)
