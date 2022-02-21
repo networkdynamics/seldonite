@@ -3,7 +3,7 @@ import os
 
 from bigdl.orca import init_orca_context, stop_orca_context
 from pyspark import SparkContext, SparkConf
-from pyspark.sql import SQLContext, SparkSession
+import pyspark.sql as psql
 
 
 class SparkBuilder():
@@ -114,8 +114,8 @@ class SparkManager():
                 )
 
         self._spark_context = sc
-        self._sql_context = SQLContext(sparkContext=sc)
-        self._session = SparkSession.builder.config(conf=sc.getConf()).getOrCreate()
+        self._sql_context = psql.SQLContext(sparkContext=sc)
+        self._session = psql.SparkSession.builder.config(conf=sc.getConf()).getOrCreate()
             
     def get_sql_context(self):
         return self._sql_context
@@ -135,3 +135,17 @@ class SparkManager():
             #pass
         else:
             self._spark_context.stop()
+
+def batch(df, max=None):
+    assert max is not None
+
+    num_partitions = max(1, int(df.count() / max))
+
+    df = df.withColumn('_row_id', psql.functions.monotonically_increasing_id())
+    # Using ntile() because monotonically_increasing_id is discontinuous across partitions
+    df = df.withColumn('_partition', psql.functions.ntile(num_partitions).over(psql.window.Window.orderBy(df._row_id))) 
+
+    for i in range(num_partitions):
+        df_batch = df.filter(df._partition == i+1).drop('_row_id', '_partition')
+
+        yield df_batch

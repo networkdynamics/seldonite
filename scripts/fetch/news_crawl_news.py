@@ -3,7 +3,7 @@ import datetime
 import json
 import os
 
-from seldonite import source
+from seldonite import sources
 from seldonite import collect
 
 
@@ -14,7 +14,7 @@ def main(args):
     else:
         sites = [args.site]
         
-    cc_source = source.NewsCrawl(master_url=args.master_url)
+    cc_source = sources.NewsCrawl(master_url=args.master_url)
 
     collector = collect.Collector(cc_source) \
                     .in_date_range(datetime.date(2021, 12, 1), datetime.date(2021, 12, 1)) \

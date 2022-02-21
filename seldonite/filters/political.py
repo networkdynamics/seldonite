@@ -76,7 +76,7 @@ def spark_predict(df, feature_col, pred_col):
     '''
 
     '''
-    BATCH_SIZE = 256
+    BATCH_SIZE = 64
 
     def model_creator(config):
         model_path = os.path.join('.', 'pon_classifier')

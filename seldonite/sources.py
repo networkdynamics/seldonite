@@ -222,7 +222,15 @@ class MongoDB(BaseSource):
         uri = utils.construct_db_uri(self.connection_string, self.database, self.collection)
 
         spark = spark_manager.get_spark_session()
-        df = spark.read.format("mongo").option("uri", uri).load()
+        df = spark.read.format("mongo") \
+                       .option("uri", self.connection_string) \
+                       .option("database", self.database) \
+                       .option("collection", self.collection) \
+                       .option("partitionerOptions.partitionSizeMB", "4") \
+                       .option("partitionerOptions.samplesPerPartition", "20") \
+                       .load()
+
+        df = df.repartition(4 * spark_manager.get_num_cpus())
 
         return self._apply_default_filters(df, spark_manager, url_only, max_articles)
 

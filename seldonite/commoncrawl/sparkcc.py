@@ -134,7 +134,7 @@ class CCSparkJob:
                                         dir=self.local_temp_dir)
             try:
                 s3client.download_fileobj(bucketname, path, warctemp)
-            except botocore.client.ClientError as exception:
+            except Exception as exception:
                 self.get_logger().error(
                     'Failed to download {}: {}'.format(uri, exception))
                 self.warc_input_failed.add(1)
@@ -333,7 +333,7 @@ class CCIndexWarcSparkJob(CCIndexSparkJob):
                 response = s3client.get_object(Bucket=bucketname,
                                                Key=warc_path,
                                                Range=rangereq)
-            except botocore.client.ClientError as exception:
+            except Exception as exception:
                 self.get_logger().error(
                     'Failed to download: {} ({}, offset: {}, length: {}) - {}'
                     .format(url, warc_path, offset, length, exception))

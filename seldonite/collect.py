@@ -81,11 +81,16 @@ class Collector:
     def _process(self, spark_manager):
         self._check_args()
         df  = self.source.fetch(spark_manager, self.max_articles, url_only=self.url_only_val)
-        spark_session = spark_manager.get_spark_session()
+
         if self.political_filter:
+
             # create concat of title and text
-            df = df.withColumn('all_text', psql.functions.concat(df['title'], psql.functions.lit(' '), df['text']))
+            df = df.filter(df['title'].isNotNull())
+            df = df.filter(df['text'].isNotNull())
+            df = df.withColumn('all_text', psql.functions.concat(df['title'], psql.functions.lit('. '), df['text']))
+
             # tokenize text
+            spark_session = spark_manager.get_spark_session()
             tokens_df = filters.political.preprocess_text(spark_session, df.select('url', 'all_text'))
             df = df.join(tokens_df, 'url').drop('all_text')
 
@@ -93,10 +98,25 @@ class Collector:
             df = df.filter(df['tokens'].isNotNull())
             df = df.filter(psql.functions.size('tokens') > 0)
 
+            # increase num partitions ready for predict to avoid errors
+            num_partitions = df.rdd.getNumPartitions()
+            df = df.repartition(num_partitions * 16)
+
             # get political predictions
-            pred_col = 'political_pred'
-            df = filters.political.spark_predict(df, 'tokens', pred_col)
-            df = df.drop('tokens')
+            pred_df = None
+            for df_batch in spark_tools.batch(df, max=100000):
+
+                pred_col = 'political_pred'
+                df_batch = filters.political.spark_predict(df_batch, 'tokens', pred_col)
+                df_batch = df_batch.drop('tokens')
+
+                if pred_df is None:
+                    pred_df = df_batch
+                else:
+                    pred_df = pred_df.union(df_batch)
+
+            df = pred_df
+
             # filter where prediction is higher than threshold
             df = df.where(f"{pred_col} > {self.political_filter_threshold}")
 
