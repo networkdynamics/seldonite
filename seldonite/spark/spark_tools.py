@@ -136,10 +136,10 @@ class SparkManager():
         else:
             self._spark_context.stop()
 
-def batch(df, max=None):
+def batch(df, max_rows=None):
     assert max is not None
 
-    num_partitions = max(1, int(df.count() / max))
+    num_partitions = max(1, int(df.count() / max_rows))
 
     df = df.withColumn('_row_id', psql.functions.monotonically_increasing_id())
     # Using ntile() because monotonically_increasing_id is discontinuous across partitions

@@ -8,20 +8,20 @@ from pyspark.sql.types import ArrayType, StringType, MapType, IntegerType
 import pyspark.sql as psql
 import geograpy
 
-from seldonite import collect
+from seldonite import collect, base
 
 
 
-class Analyze():
-    collector: collect.Collector
+class Analyze(base.BaseStage):
+    input: base.BaseStage
 
-    def __init__(self, collector):
-        self.collector = collector
+    def __init__(self, input):
+        self.input = input
         self.do_articles_over_time = False
         self.do_article_domains = False
 
     def _process(self, spark_manager):
-        df = self.collector._process(spark_manager)
+        df = self.input._process(spark_manager)
 
         if self.do_articles_over_time:
             df = self._process_articles_over_time(df)
@@ -50,11 +50,13 @@ class Analyze():
     def article_domains(self):
         self.do_article_domains = True
 
+        return self
+
     def _process_article_domains(self, df: psql.DataFrame):
         
         def get_domain(url):
             return urllib.parse.urlparse(url).netloc
-        domain_udf = udf(get_domain, StringType())
+        domain_udf = sfuncs.udf(get_domain, StringType())
 
         df = df.select(domain_udf('url').alias('domain')).distinct()
 

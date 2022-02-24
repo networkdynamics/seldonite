@@ -41,7 +41,7 @@ class Runner():
         with spark_builder.start_session() as spark_manager:
             df = self.input._process(spark_manager)
 
-            for df_batch in spark_tools.batch(df, max=1000000):
+            for df_batch in spark_tools.batch(df, max_rows=1000000):
                 df_batch.write \
                     .format("mongo") \
                     .mode("append") \

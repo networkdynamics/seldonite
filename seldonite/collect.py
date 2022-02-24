@@ -21,6 +21,7 @@ class Collector:
         self.url_only_val = False
         self.max_articles = None
         self.political_filter = False
+        self.get_distinct_articles = False
         self.sites=[]
 
     def in_date_range(self, start_date, end_date):
@@ -65,6 +66,8 @@ class Collector:
         self.source.set_url_blacklist(url_wildcards)
         return self
 
+    def distinct(self):
+        self.get_distinct_articles = True
 
     def _set_spark_options(self, spark_builder: spark_tools.SparkBuilder):
 
@@ -80,7 +83,10 @@ class Collector:
 
     def _process(self, spark_manager):
         self._check_args()
-        df  = self.source.fetch(spark_manager, self.max_articles, url_only=self.url_only_val)
+        df = self.source.fetch(spark_manager, self.max_articles, url_only=self.url_only_val)
+
+        if self.get_distinct_articles:
+            df = df.dropDuplicates(['url'])
 
         if self.political_filter:
 
@@ -104,7 +110,7 @@ class Collector:
 
             # get political predictions
             pred_df = None
-            for df_batch in spark_tools.batch(df, max=100000):
+            for df_batch in spark_tools.batch(df, max_rows=100000):
 
                 pred_col = 'political_pred'
                 df_batch = filters.political.spark_predict(df_batch, 'tokens', pred_col)
