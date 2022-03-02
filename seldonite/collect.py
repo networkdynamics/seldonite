@@ -86,7 +86,7 @@ class Collector:
         df = self.source.fetch(spark_manager, self.max_articles, url_only=self.url_only_val)
 
         if self.get_distinct_articles:
-            df = df.dropDuplicates(['url'])
+            df = df.drop_duplicates(['url'])
 
         if self.political_filter:
 

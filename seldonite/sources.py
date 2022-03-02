@@ -218,6 +218,7 @@ class MongoDB(BaseSource):
     def _set_spark_options(self, spark_builder: spark_tools.SparkBuilder):
         spark_builder.add_package('org.mongodb.spark:mongo-spark-connector_2.12:3.0.1')
         spark_builder.set_conf('spark.mongodb.input.uri', self.connection_string)
+        spark_builder.set_conf('spark.mongodb.keep_alive_ms', 20000)
 
     def fetch(self, spark_manager: spark_tools.SparkManager, max_articles: int = None, url_only: bool = False):
         uri = utils.construct_db_uri(self.connection_string, self.database, self.collection)

@@ -19,6 +19,7 @@ class Analyze(base.BaseStage):
         self.input = input
         self.do_articles_over_time = False
         self.do_article_domains = False
+        self.do_publish_dates = False
 
     def _process(self, spark_manager):
         df = self.input._process(spark_manager)
@@ -34,13 +35,14 @@ class Analyze(base.BaseStage):
         assert period == 'year' or period == 'month'
         self.do_articles_over_time = True
         self.articles_over_time_period = period
+        return self
 
     def _process_articles_over_time(self, df):
 
-        df = df.withColumn('date_year', sfuncs.year(col("publish_date")).alias("date_year"))
+        df = df.withColumn('date_year', sfuncs.year(sfuncs.col("publish_date")).alias("date_year"))
 
         if self.articles_over_time_period == 'month':
-            df = df.withColumn('date_month', sfuncs.month(col("publish_date")).alias("date_month"))
+            df = df.withColumn('date_month', sfuncs.month(sfuncs.col("publish_date")).alias("date_month"))
 
         group_cols = ('date_year', 'date_month') if self.articles_over_time_period == 'month' else ('date_year')
         df = df.groupby(*group_cols).count()
@@ -61,8 +63,6 @@ class Analyze(base.BaseStage):
         df = df.select(domain_udf('url').alias('domain')).distinct()
 
         return df
-
-
 
     def keywords_over_time(self, keywords: List[str]):
         self.keywords_over_time_flag = True
