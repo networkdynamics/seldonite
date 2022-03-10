@@ -1,9 +1,12 @@
 from contextlib import contextmanager
 
+from seldonite import base
 from seldonite.spark import spark_tools
 
 class Runner():
     def __init__(self, input, master_url=None, num_executors=1, executor_cores=16, executor_memory='160g', spark_conf={}):
+        
+        assert isinstance(input, base.BaseStage), "Input must be a Seldonite stage."
         self.input = input
 
         self.spark_master_url = master_url

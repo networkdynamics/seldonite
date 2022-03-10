@@ -35,6 +35,8 @@ class Analyze():
         self.do_articles_over_time = True
         self.articles_over_time_period = period
 
+        return self
+
     def _process_articles_over_time(self, df):
 
         df = df.withColumn('date_year', sfuncs.year(col("publish_date")).alias("date_year"))
@@ -49,6 +51,8 @@ class Analyze():
 
     def article_domains(self):
         self.do_article_domains = True
+
+        return self
 
     def _process_article_domains(self, df: psql.DataFrame):
         
@@ -65,6 +69,8 @@ class Analyze():
     def keywords_over_time(self, keywords: List[str]):
         self.keywords_over_time_flag = True
         self.keywords = keywords
+
+        return self
 
 
     def proportion_of_countries(self, df):
