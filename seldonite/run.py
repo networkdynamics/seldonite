@@ -41,10 +41,12 @@ class Runner():
     def send_to_database(self, connection_string, database, table):
         spark_builder = self._get_spark_builder()
         spark_builder.set_conf('spark.mongodb.output.uri', connection_string)
+        spark_builder.add_package('org.mongodb.spark:mongo-spark-connector_2.12:3.0.1')
+        spark_builder.set_conf('spark.mongodb.keep_alive_ms', 20000)
         with spark_builder.start_session() as spark_manager:
             df = self.input._process(spark_manager)
 
-            for df_batch in spark_tools.batch(df, max=1000000):
+            for df_batch in spark_tools.batch(df, max_rows=1000000):
                 df_batch.write \
                     .format("mongo") \
                     .mode("append") \

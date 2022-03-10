@@ -206,17 +206,19 @@ class MongoDB(BaseSource):
     database: str
     collection: str
 
-    def __init__(self, connection_string: str, database: str, collection: str):
+    def __init__(self, connection_string: str, database: str, collection: str, partition_size_mb: int = 32):
         super().__init__()
         self.connection_string = connection_string
         self.database = database
         self.collection = collection
+        self.partition_size = partition_size_mb
 
         self.can_url_black_list = True
 
     def _set_spark_options(self, spark_builder: spark_tools.SparkBuilder):
         spark_builder.add_package('org.mongodb.spark:mongo-spark-connector_2.12:3.0.1')
         spark_builder.set_conf('spark.mongodb.input.uri', self.connection_string)
+        spark_builder.set_conf('spark.mongodb.keep_alive_ms', 20000)
 
     def fetch(self, spark_manager: spark_tools.SparkManager, max_articles: int = None, url_only: bool = False):
         uri = utils.construct_db_uri(self.connection_string, self.database, self.collection)
@@ -226,7 +228,7 @@ class MongoDB(BaseSource):
                        .option("uri", self.connection_string) \
                        .option("database", self.database) \
                        .option("collection", self.collection) \
-                       .option("partitionerOptions.partitionSizeMB", "4") \
+                       .option("partitionerOptions.partitionSizeMB", str(self.partition_size)) \
                        .option("partitionerOptions.samplesPerPartition", "20") \
                        .load()
 

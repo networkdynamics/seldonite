@@ -3,6 +3,7 @@ channels:
   - conda-forge
   - huggingface
   - pytorch
+  - johnsnowlabs
 dependencies:
   - python=3.7
   - conda-build
@@ -10,6 +11,7 @@ dependencies:
   - newspaper3k
   - boto3
   - pyspark==3.1.2
+  - spark-nlp
   - selenium
   - spacy
   - nltk
@@ -33,5 +35,4 @@ dependencies:
     - pyzmq
     - tensorflow>=2.1.0
     - bigdl-spark3
-    - spark-nlp
     - geograpy3

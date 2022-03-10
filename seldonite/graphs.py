@@ -1,7 +1,7 @@
 import networkx as nx
 import pyspark.sql.functions as sfuncs
 import pyspark.sql as psql
-import transformers
+from sparknlp.pretrained import PretrainedPipeline
 
 from seldonite import base
 
@@ -17,6 +17,9 @@ class Graph(base.BaseStage):
         Z2 = 2
         TOP_NUM_NODE = 20
 
+        # increase number of partitions because of new columns
+        num_partitions = df.rdd.getNumPartitions()
+        df = df.repartition(num_partitions * 64)
         df.cache()
 
         # explode tfidf into rows and get unique word nodes
@@ -90,35 +93,10 @@ class Graph(base.BaseStage):
                                                                               .when(sfuncs.col('num_words') > 5000, 'wcmax'))
 
         # get article sentiment
-        def get_sentiment(rows):
-            sentiment_analysis = transformers.pipeline("sentiment-analysis",model="siebert/sentiment-roberta-large-english")
-            rows = list(rows)
-            results = sentiment_analysis([row['title'] for row in rows])
-
-            for row, result in zip(rows, results):
-                label = result['label']
-                score = result['score']
-                if label == 'POSITIVE':
-                    if score > 0.6:
-                        senti = 'positive_2'
-                    elif score < 0.3:
-                        senti = 'neutral'
-                    else:
-                        senti = 'positive_1'
-                elif label == 'NEGATIVE':
-                    if score > 0.6:
-                        senti = 'negative_2'
-                    elif score < 0.3:
-                        senti = 'neutral'
-                    else:
-                        senti = 'negative_1'
-
-                tmp = row.asDict()
-                tmp['sentiment'] = senti
-                new_row = psql.Row(**tmp)
-                yield new_row
-
-        article_nodes_df = article_nodes_df.rdd.mapPartitions(get_sentiment).toDF()
+        sentiment_pipeline = PretrainedPipeline("classifierdl_bertwiki_finance_sentiment_pipeline", lang = "en")
+        article_nodes_df = sentiment_pipeline.annotate(article_nodes_df, 'text') \
+                                             .select('*', F.col('class.result').getItem(0).alias('sentiment')) \
+                                             .drop('document', 'sentence_embeddings', 'class')
 
         # get month 
         article_nodes_df = article_nodes_df.withColumn('month', sfuncs.concat(sfuncs.lit('m_'), sfuncs.month('publish_date')))

@@ -8,6 +8,7 @@ dependencies:
   - newspaper3k
   - boto3
   - pyspark==3.1.2
+  - transformers>=4.16
   - pandas==1.0.3
   - numpy==1.21.4
   - six==1.16.0
