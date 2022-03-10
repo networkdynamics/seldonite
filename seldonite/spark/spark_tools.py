@@ -24,6 +24,9 @@ class SparkBuilder():
         self.conf['spark.executor.cores'] = str(executor_cores)
         self.conf['spark.executor.memory'] = executor_memory
 
+        # increase some timeouts
+        self.conf['spark.sql.broadcastTimeout'] = '1800'
+
         if self.spark_master_url:
 
             # set spark container image

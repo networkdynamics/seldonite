@@ -155,7 +155,9 @@ class NLP:
         return df
 
     def _set_spark_options(self, spark_builder):
-        spark_builder.add_package('com.johnsnowlabs.nlp:spark-nlp_2.12:3.4.0')
+        spark_builder.add_package('com.johnsnowlabs.nlp:spark-nlp_2.12:3.4.1')
+        spark_builder.set_conf('spark.kryoserializer.buffer.max', '2000M')
+        spark_builder.set_conf("spark.driver.maxResultSize", "0")
 
         self.collector._set_spark_options(spark_builder)
     
