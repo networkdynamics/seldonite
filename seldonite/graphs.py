@@ -141,6 +141,10 @@ class Graph(base.BaseStage):
 
     def _build_entity_dag(self, df, spark_manager):
         pass
+    
+    def _set_spark_options(self, spark_builder):
+        spark_builder.use_spark_nlp()
+        self.input._set_spark_options(spark_builder)
 
     def _process(self, spark_manager):
         df = self.input._process(spark_manager)
