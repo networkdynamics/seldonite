@@ -7,11 +7,18 @@ from seldonite import base
 
 class Graph(base.BaseStage):
 
-    def build(self, option='news2vec', export_articles=False):
-        self.graph_option = option
+    def __init__(self):
+        super().__init__()
+        self.graph_option = ''
+
+    def build_news2vec_graph(self, export_articles=False):
+        self.graph_option = 'news2vec'
         self.export_articles = export_articles
 
-    def build_news2vec_graph(self, df: psql.DataFrame, spark_manager):
+    def build_entity_dag(self):
+        self.graph_option = 'entity_dag'
+
+    def _build_news2vec_graph(self, df: psql.DataFrame, spark_manager):
 
         Z1 = 1
         Z2 = 2
@@ -132,10 +139,17 @@ class Graph(base.BaseStage):
 
         return graph, node_map_df
 
+    def _build_entity_dag(self, df, spark_manager):
+        pass
+
     def _process(self, spark_manager):
         df = self.input._process(spark_manager)
 
         if self.graph_option == 'news2vec':
-            graph = self.build_news2vec_graph(df, spark_manager)
+            graph = self._build_news2vec_graph(df, spark_manager)
+        elif self.graph_option == 'entity_dag':
+            graph = self._build_entity_dag(df, spark_manager)
+        else:
+            raise ValueError('Must have chosen graph option with this pipeline step')
 
         return graph
