@@ -7,8 +7,8 @@ from seldonite import base
 
 class Graph(base.BaseStage):
 
-    def __init__(self):
-        super().__init__()
+    def __init__(self, input):
+        super().__init__(input)
         self.graph_option = ''
 
     def build_news2vec_graph(self, export_articles=False):
@@ -141,7 +141,7 @@ class Graph(base.BaseStage):
 
     def _build_entity_dag(self, df, spark_manager):
         pass
-    
+
     def _set_spark_options(self, spark_builder):
         spark_builder.use_spark_nlp()
         self.input._set_spark_options(spark_builder)
