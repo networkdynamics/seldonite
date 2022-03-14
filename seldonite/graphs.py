@@ -132,6 +132,10 @@ class Graph(base.BaseStage):
 
         return graph, node_map_df
 
+    def _set_spark_options(self, spark_builder):
+        spark_builder.use_spark_nlp()
+        self.input._set_spark_options(spark_builder)
+
     def _process(self, spark_manager):
         df = self.input._process(spark_manager)
 

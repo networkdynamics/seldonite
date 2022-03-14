@@ -7,7 +7,7 @@ import pyspark.sql as psql
 
 
 class SparkBuilder():
-    def __init__(self, master, name='seldonite_app', archives=[], executor_cores=16, executor_memory='160g', num_executors=1, spark_conf={}):
+    def __init__(self, master, name='seldonite_app', archives=[], executor_cores=16, executor_memory='128g', driver_memory='128g', num_executors=1, spark_conf={}):
 
         self.use_bigdl_flag = False
         # address of spark master node
@@ -19,6 +19,9 @@ class SparkBuilder():
         self.conf.update(spark_conf.items())
 
         self.conf['spark.app.name'] = name
+
+        # set driver memory
+        self.conf['spark.driver.memory'] = driver_memory
 
         # specify pod size
         self.conf['spark.executor.cores'] = str(executor_cores)
@@ -67,6 +70,11 @@ class SparkBuilder():
 
     def add_archive(self, archive):
         self.archives.append(archive)
+
+    def use_spark_nlp(self):
+        self.add_package('com.johnsnowlabs.nlp:spark-nlp_2.12:3.4.1')
+        self.set_conf('spark.kryoserializer.buffer.max', '2000M')
+        self.set_conf("spark.driver.maxResultSize", "0")
 
     @contextmanager
     def start_session(self):
