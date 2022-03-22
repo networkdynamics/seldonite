@@ -19,12 +19,14 @@ class NLP:
 
         self.do_tfidf = False
 
-    def top_tfidf(self, top_num):
+    def top_tfidf(self, top_num, save_path=None, load_path=None):
         self.do_tfidf = True
         self.tfidf_top_num = top_num
+        self.tfidf_save_path = save_path
+        self.tfidf_load_path = load_path
         return self
 
-    def _tfidf(self, df, spark_manager):
+    def _tfidf(self, df: psql.DataFrame, spark_manager):
         try:
             eng_stopwords = nltk.corpus.stopwords.words('english')
         except LookupError as e:
@@ -96,9 +98,13 @@ class NLP:
         pipeline = sparkml.Pipeline() \
             .setStages(stages)
 
+        # increase number of partitions because of new columns
+        num_partitions = df.rdd.getNumPartitions()
+        df = df.repartition(num_partitions * 4)
+
         # tokenize, lemmatize, remove stop words
         df = pipeline.fit(df) \
-                        .transform(df)
+                     .transform(df)
 
         df = df.drop(*cols_to_drop)
 
@@ -136,6 +142,9 @@ class NLP:
             tfidf_col = f"{text_col}_features"
             idf = sparkml.feature.IDF(inputCol=count_feat_col, outputCol=tfidf_col)
             idf_model = idf.fit(df)
+
+            idf_model.save(self.tfidf_save_path)
+
             df = idf_model.transform(df)
 
             # flatten output features column to get indices & value

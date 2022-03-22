@@ -17,9 +17,6 @@ class Graph(base.BaseStage):
         Z2 = 2
         TOP_NUM_NODE = 20
 
-        # increase number of partitions because of new columns
-        num_partitions = df.rdd.getNumPartitions()
-        df = df.repartition(num_partitions * 64)
         df.cache()
 
         # explode tfidf into rows and get unique word nodes
@@ -95,7 +92,7 @@ class Graph(base.BaseStage):
         # get article sentiment
         sentiment_pipeline = PretrainedPipeline("classifierdl_bertwiki_finance_sentiment_pipeline", lang = "en")
         article_nodes_df = sentiment_pipeline.annotate(article_nodes_df, 'text') \
-                                             .select('*', F.col('class.result').getItem(0).alias('sentiment')) \
+                                             .select('*', sfuncs.col('class.result').getItem(0).alias('sentiment')) \
                                              .drop('document', 'sentence_embeddings', 'class')
 
         # get month 
