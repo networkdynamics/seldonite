@@ -13,7 +13,7 @@ def main(args):
     nl_processor.top_tfidf(10)
 
     graph_constructor = graphs.Graph(nl_processor)
-    graph_constructor.build(option='news2vec')
+    graph_constructor.build_news2vec_graph()
 
     runner = run.Runner(graph_constructor)
     G, map_df = runner.get_obj()

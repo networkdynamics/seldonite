@@ -37,6 +37,8 @@ class Analyze(base.BaseStage):
         self.articles_over_time_period = period
         return self
 
+        return self
+
     def _process_articles_over_time(self, df):
 
         df = df.withColumn('date_year', sfuncs.year(sfuncs.col("publish_date")).alias("date_year"))
@@ -67,6 +69,8 @@ class Analyze(base.BaseStage):
     def keywords_over_time(self, keywords: List[str]):
         self.keywords_over_time_flag = True
         self.keywords = keywords
+
+        return self
 
 
     def proportion_of_countries(self, df):
