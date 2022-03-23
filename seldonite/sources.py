@@ -206,7 +206,7 @@ class MongoDB(BaseSource):
     database: str
     collection: str
 
-    def __init__(self, connection_string: str, database: str, collection: str, partition_size_mb: int = 32):
+    def __init__(self, connection_string: str, database: str, collection: str, partition_size_mb: int = 4):
         super().__init__()
         self.connection_string = connection_string
         self.database = database
@@ -231,8 +231,6 @@ class MongoDB(BaseSource):
                        .option("partitionerOptions.partitionSizeMB", str(self.partition_size)) \
                        .option("partitionerOptions.samplesPerPartition", "20") \
                        .load()
-
-        df = df.repartition(4 * spark_manager.get_num_cpus())
 
         return self._apply_default_filters(df, spark_manager, url_only, max_articles)
 

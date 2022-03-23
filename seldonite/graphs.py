@@ -137,7 +137,10 @@ class Graph(base.BaseStage):
         return graph, node_map_df
 
     def _build_entity_dag(self, df, spark_manager):
-        pass
+        df = df.withColumn('all_text', psql.functions.concat(df['title'], psql.functions.lit('. '), df['text']))
+
+        fewnerd_pipeline = PretrainedPipeline("nerdl_fewnerd_subentity_100d_pipeline", lang = "en")
+        fewnerd_pipeline.annotate(df, 'all_text')
 
     def _set_spark_options(self, spark_builder):
         spark_builder.use_spark_nlp()

@@ -1,4 +1,4 @@
-from lib2to3.pgen2 import token
+import os
 import re
 import subprocess
 
@@ -100,7 +100,9 @@ class NLP:
 
         # increase number of partitions because of new columns
         num_partitions = df.rdd.getNumPartitions()
-        df = df.repartition(num_partitions * 4)
+        df = df.repartition(num_partitions * 16)
+        # catch up on lazy evaluation to get repartitioning done
+        df.first()
 
         # tokenize, lemmatize, remove stop words
         df = pipeline.fit(df) \
@@ -141,9 +143,15 @@ class NLP:
             # get inverse document frequency
             tfidf_col = f"{text_col}_features"
             idf = sparkml.feature.IDF(inputCol=count_feat_col, outputCol=tfidf_col)
-            idf_model = idf.fit(df)
+            
+            # perform save / load operations if required
+            if self.tfidf_load_path:
+                idf_model = sparkml.feature.IDFModel.load(os.path.join(self.tfidf_load_path, f"{text_col}_saved_idf.model"))
+            else:
+                idf_model = idf.fit(df)
 
-            idf_model.save(self.tfidf_save_path)
+                if self.tfidf_save_path:
+                    idf_model.write().overwrite().save(os.path.join(self.tfidf_save_path, f"{text_col}_saved_idf.model"))
 
             df = idf_model.transform(df)
 

@@ -7,7 +7,7 @@ import pyspark.sql as psql
 
 
 class SparkBuilder():
-    def __init__(self, master, name='seldonite_app', archives=[], executor_cores=16, executor_memory='128g', driver_memory='128g', num_executors=1, spark_conf={}):
+    def __init__(self, master, name='seldonite_app', archives=[], executor_cores=16, executor_memory='128g', driver_cores=2, driver_memory='128g', num_executors=1, spark_conf={}):
 
         self.use_bigdl_flag = False
         # address of spark master node
@@ -20,7 +20,8 @@ class SparkBuilder():
 
         self.conf['spark.app.name'] = name
 
-        # set driver memory
+        # set driver specs
+        self.conf['spark.driver.cores'] = driver_cores
         self.conf['spark.driver.memory'] = driver_memory
 
         # specify pod size
@@ -121,6 +122,7 @@ class SparkManager():
                 spark_conf = SparkConf()
                 spark_conf.setAll(conf.items())
                 sc = SparkContext(
+                    master='local[*]',
                     conf=spark_conf
                 )
 
