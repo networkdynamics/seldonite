@@ -1,3 +1,4 @@
+from html import entities
 import networkx as nx
 import pyspark.sql.functions as sfuncs
 import pyspark.sql as psql
@@ -14,9 +15,11 @@ class Graph(base.BaseStage):
     def build_news2vec_graph(self, export_articles=False):
         self.graph_option = 'news2vec'
         self.export_articles = export_articles
+        return self
 
     def build_entity_dag(self):
         self.graph_option = 'entity_dag'
+        return self
 
     def _build_news2vec_graph(self, df: psql.DataFrame, spark_manager):
 
@@ -27,20 +30,27 @@ class Graph(base.BaseStage):
         df.cache()
 
         # explode tfidf into rows and get unique word nodes
-        words_df = df.select(sfuncs.explode(sfuncs.col('text_top_n')).alias('map')) \
-                     .union(df.select(sfuncs.explode(sfuncs.col('title_top_n')).alias('map'))) \
-                     .select('map.word')
-        words_df = words_df.select('word') \
-                           .distinct()
+        words_df = df.select('id', sfuncs.explode(sfuncs.col('text_top_n')).alias('map')) \
+                     .union(df.select('id', sfuncs.explode(sfuncs.col('title_top_n')).alias('map'))) \
+                     .select('id', sfuncs.col('map.word').alias('word'))
+
+        # get words which appear in multiple articles
+        words_df = words_df.drop_duplicates(['id', 'word']) \
+                           .groupby('word') \
+                           .count()
+
+        words_df = words_df.where(sfuncs.col('count') > 1) \
+                           .select('word')
 
         # create distinct ids for each node
         nodes_df = df.drop('id') \
                      .unionByName(words_df, allowMissingColumns=True) \
                      .withColumn('id', sfuncs.monotonically_increasing_id())
 
+        nodes_df.cache()
+
         # explode tfidf again to get edges
         article_nodes_df = nodes_df.where(sfuncs.col('text_top_n').isNotNull() & sfuncs.col('title_top_n').isNotNull())
-        article_nodes_df.cache()
 
         text_edges_df = article_nodes_df.select('id', sfuncs.explode(sfuncs.col('text_top_n')).alias('text')) \
                                         .select(sfuncs.col('id').alias('text_id'), sfuncs.col('text.word').alias('text_word'), sfuncs.col('text.value').alias('text_value'))
@@ -136,11 +146,20 @@ class Graph(base.BaseStage):
 
         return graph, node_map_df
 
-    def _build_entity_dag(self, df, spark_manager):
-        df = df.withColumn('all_text', psql.functions.concat(df['title'], psql.functions.lit('. '), df['text']))
+    def _build_entity_dag(self, df: psql.DataFrame, spark_manager):
+        df.cache()
 
-        fewnerd_pipeline = PretrainedPipeline("nerdl_fewnerd_subentity_100d_pipeline", lang = "en")
-        fewnerd_pipeline.annotate(df, 'all_text')
+        # explode entities
+        entities_df = df.select('*', sfuncs.explode(sfuncs.col('entities')).alias('entities')) \
+                        .select('url', 'text', 'title', 'publish_date', sfuncs.col('entities.entity').alias('entitiy'), sfuncs.col('entities.type').alias('entity_type'))
+
+        # find shared entity edges
+        edges_df = entities_df.alias('df1').join(entities_df.alias('df2'), \
+                                                 sfuncs.col('df1.entity') == sfuncs.col('df2.entity') and sfuncs.col('df1.entity_type') == sfuncs.col('df2.entity_type') and sfuncs.col('df1.publish_date') > sfuncs.col('df2.publish_date'), \
+                                                 'inner')
+
+        # find day diff between news events
+        edges_df = edges_df.withColumn('date_diff', )
 
     def _set_spark_options(self, spark_builder):
         spark_builder.use_spark_nlp()

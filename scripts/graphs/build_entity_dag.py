@@ -8,8 +8,11 @@ def main(args):
     source = sources.CSV(args.input)
     collector = collect.Collector(source)
 
-    graph_constructor = graphs.Graph(collector)
-    graph_constructor.build_entity_dag()
+    nl_processor = nlp.NLP(collector) \
+        .get_entities()
+
+    graph_constructor = graphs.Graph(nl_processor) \
+        .build_entity_dag()
 
     runner = run.Runner(graph_constructor)
     G, map_df = runner.get_obj()

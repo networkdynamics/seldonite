@@ -19,7 +19,7 @@ def main(args):
     G, map_df = runner.get_obj()
 
     nx.write_weighted_edgelist(G, args.graph)
-    map_df.to_csv(args.map, index=False, sep=' ')
+    map_df.to_csv(args.map, index=False, sep=' ', header=False)
 
 if __name__ == '__main__':
 

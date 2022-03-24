@@ -206,6 +206,7 @@ class NLP(base.BaseStage):
             cv_model.setInputCol(token_col)
             cv_model.setOutputCol(count_feat_col)
             df = cv_model.transform(df)
+            df.cache()
             
             # get inverse document frequency
             tfidf_col = f"{text_col}_features"
