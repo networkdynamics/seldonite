@@ -83,6 +83,11 @@ class Graph(base.BaseStage):
         # node values for word nodes
         word_nodes_df = word_nodes_df.select('id', sfuncs.col('word').alias('value'))
 
+        # get rid of word nodes with no edges (possibly due to 0 weight edges being removed)
+        word_nodes_df = word_nodes_df.join(edges_df, (word_nodes_df['id'] == edges_df['id1']) | (word_nodes_df['id'] == edges_df['id2']), 'inner') \
+                                     .select('id', 'value') \
+                                     .drop_duplicates(['id', 'value'])
+
         # node values for article nodes
 
         # concat all top tfidf words
@@ -155,7 +160,7 @@ class Graph(base.BaseStage):
 
         # find shared entity edges
         edges_df = entities_df.alias('df1').join(entities_df.alias('df2'), \
-                                                 sfuncs.col('df1.entity') == sfuncs.col('df2.entity') and sfuncs.col('df1.entity_type') == sfuncs.col('df2.entity_type') and sfuncs.col('df1.publish_date') > sfuncs.col('df2.publish_date'), \
+                                                 (sfuncs.col('df1.entity') == sfuncs.col('df2.entity')) & (sfuncs.col('df1.entity_type') == sfuncs.col('df2.entity_type')) & (sfuncs.col('df1.publish_date') > sfuncs.col('df2.publish_date')), \
                                                  'inner')
 
         # find day diff between news events
