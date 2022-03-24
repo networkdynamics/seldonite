@@ -56,7 +56,8 @@ class SparkBuilder():
             self.archives.append(f'{conda_package_path}#environment')
 
         else:
-            self.conf['spark.executor.instances'] = 1
+            #self.conf['spark.executor.instances'] = 1
+            self.conf['spark.ui.showConsoleProgress'] = 'true'
 
             os.environ['PYSPARK_PYTHON'] = python_executable
 

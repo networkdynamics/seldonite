@@ -7,19 +7,18 @@ from seldonite import graphs, sources, collect, nlp, run
 def main(args):
     source = sources.CSV(args.input)
     collector = collect.Collector(source)
-    collector.limit_num_articles(10)
 
-    nl_processor = nlp.NLP(collector)
-    nl_processor.top_tfidf(10)
+    nl_processor = nlp.NLP(collector) \
+        .get_entities()
 
-    graph_constructor = graphs.Graph(nl_processor)
-    graph_constructor.build_news2vec_graph()
+    graph_constructor = graphs.Graph(nl_processor) \
+        .build_entity_dag()
 
     runner = run.Runner(graph_constructor)
     G, map_df = runner.get_obj()
 
     nx.write_weighted_edgelist(G, args.graph)
-    map_df.to_csv(args.map, index=False, sep=' ', header=False)
+    map_df.to_csv(args.map, index=False, sep=' ')
 
 if __name__ == '__main__':
 

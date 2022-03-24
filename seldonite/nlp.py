@@ -9,15 +9,15 @@ import pyspark.sql.functions as sfuncs
 import pyspark.ml as sparkml
 import sparknlp
 
-from seldonite import collect
+from seldonite import base, collect
 
-class NLP:
-    collector: collect.Collector
+class NLP(base.BaseStage):
 
-    def __init__(self, collector):
-        self.collector = collector
+    def __init__(self, input):
+        super().__init__(input)
 
         self.do_tfidf = False
+        self.do_get_entities = False
 
     def top_tfidf(self, top_num, save_path=None, load_path=None):
         self.do_tfidf = True
@@ -25,6 +25,73 @@ class NLP:
         self.tfidf_save_path = save_path
         self.tfidf_load_path = load_path
         return self
+
+    def get_entities(self):
+        self.do_get_entities = True
+        return self
+
+    def _get_entities(self, df, spark_manager):
+        df = df.withColumnRenamed('text', 'article_text')
+        df = df.withColumn('text', psql.functions.concat(df['title'], psql.functions.lit('. '), df['article_text']))
+
+        documentAssembler = sparknlp.DocumentAssembler()\
+                .setInputCol("text")\
+                .setOutputCol("document")
+
+        sentenceDetector = sparknlp.annotator.SentenceDetector()\
+                .setInputCols(["document"])\
+                .setOutputCol("sentence")
+
+        tokenizer = sparknlp.annotator.Tokenizer()\
+                .setInputCols(["sentence"])\
+                .setOutputCol("token")
+
+        embeddings = sparknlp.annotator.WordEmbeddingsModel.pretrained("glove_100d", "en")\
+                    .setInputCols("sentence", "token") \
+                    .setOutputCol("embeddings")
+
+        ner = sparknlp.annotator.NerDLModel.pretrained("nerdl_fewnerd_100d")\
+                .setInputCols(["sentence", "token", "embeddings"])\
+                .setOutputCol("ner")
+
+        ner_converter = sparknlp.annotator.NerConverter()\
+            .setInputCols(['document', 'token', 'ner'])\
+            .setOutputCol('ner_chunk')
+
+        entity_pipeline = sparkml.Pipeline(stages=[documentAssembler, sentenceDetector,
+                tokenizer,
+                embeddings,
+                ner,
+                ner_converter])
+
+        spark = spark_manager.get_spark_session()
+        empty_data = spark.createDataFrame([[""]]).toDF("text")
+
+        ner_model = entity_pipeline.fit(empty_data)
+
+        # add index
+        df = df.withColumn("id", sfuncs.monotonically_increasing_id())
+
+        df = ner_model.transform(df)
+
+        df = df.drop('text', 'document', 'sentence', 'token', 'embeddings', 'ner')
+        df = df.withColumnRenamed('article_text', 'text')
+
+        # flatten output features column to get indices & value
+        entity_df = df.select('id', sfuncs.explode(sfuncs.col('ner_chunk')).name('ner_chunk')) \
+                      .select('id', sfuncs.col('ner_chunk.result').alias('entity'), sfuncs.col('ner_chunk.metadata.entity').alias('type'), sfuncs.col('ner_chunk.metadata.confidence').alias('confidence'))
+
+        CONFIDENCE_THRESHOLD = 0.8
+        entity_df = entity_df.where(sfuncs.col('confidence') >= CONFIDENCE_THRESHOLD) \
+                             .drop_duplicates(['id', 'entity'])
+        entity_df = entity_df.groupby('id') \
+                             .agg(sfuncs.collect_list(sfuncs.struct(sfuncs.col('entity'),sfuncs.col('type'))).name('entities'))
+
+        df = df.drop('ner_chunk')
+        df = df.join(entity_df, 'id')
+        df = df.drop('id')
+
+        return df
 
     def _tfidf(self, df: psql.DataFrame, spark_manager):
         try:
@@ -139,6 +206,7 @@ class NLP:
             cv_model.setInputCol(token_col)
             cv_model.setOutputCol(count_feat_col)
             df = cv_model.transform(df)
+            df.cache()
             
             # get inverse document frequency
             tfidf_col = f"{text_col}_features"
@@ -173,13 +241,15 @@ class NLP:
 
     def _set_spark_options(self, spark_builder):
         spark_builder.use_spark_nlp()
-        self.collector._set_spark_options(spark_builder)
+        self.input._set_spark_options(spark_builder)
     
     def _process(self, spark_manager):
-        df = self.collector._process(spark_manager)
+        df = self.input._process(spark_manager)
         
         if self.do_tfidf:
             df = self._tfidf(df, spark_manager)
+        if self.do_get_entities:
+            df = self._get_entities(df, spark_manager)
 
         return df
 
