@@ -4,7 +4,7 @@ from seldonite import base
 from seldonite.spark import spark_tools
 
 class Runner():
-    def __init__(self, input: base.BaseStage, master_url=None, num_executors=1, executor_cores=16, executor_memory='128g', driver_cores=2, driver_memory='128g', spark_conf={}):
+    def __init__(self, input: base.BaseStage, master_url=None, num_executors=1, executor_cores=16, executor_memory='128g', driver_cores=2, driver_memory='128g', python_executable='python', spark_conf={}):
         assert isinstance(input, base.BaseStage), "Input must be a Seldonite stage."
         self.input = input
 
@@ -15,6 +15,7 @@ class Runner():
         self.driver_memory = driver_memory
         self.driver_cores = driver_cores
         self.spark_conf = spark_conf
+        self.python_executable = python_executable
 
     def get_obj(self):
         with self.start_and_process() as obj:
@@ -57,7 +58,8 @@ class Runner():
 
     def _get_spark_builder(self):
         spark_builder = spark_tools.SparkBuilder(self.spark_master_url, executor_cores=self.executor_cores, executor_memory=self.executor_memory, 
-                                                 num_executors=self.num_executors, driver_cores=self.driver_cores, driver_memory=self.driver_memory, spark_conf=self.spark_conf)
+                                                 num_executors=self.num_executors, driver_cores=self.driver_cores, driver_memory=self.driver_memory, 
+                                                 python_executable=self.python_executable, spark_conf=self.spark_conf)
 
         self.input._set_spark_options(spark_builder)
 

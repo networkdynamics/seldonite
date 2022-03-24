@@ -7,7 +7,7 @@ import pyspark.sql as psql
 
 
 class SparkBuilder():
-    def __init__(self, master, name='seldonite_app', archives=[], executor_cores=16, executor_memory='128g', driver_cores=2, driver_memory='128g', num_executors=1, spark_conf={}):
+    def __init__(self, master, name='seldonite_app', archives=[], executor_cores=16, executor_memory='128g', driver_cores=2, driver_memory='128g', num_executors=1, python_executable='python', spark_conf={}):
 
         self.use_bigdl_flag = False
         # address of spark master node
@@ -59,7 +59,7 @@ class SparkBuilder():
             #self.conf['spark.executor.instances'] = 1
             self.conf['spark.ui.showConsoleProgress'] = 'true'
 
-            os.environ['PYSPARK_PYTHON'] = 'python'
+            os.environ['PYSPARK_PYTHON'] = python_executable
 
     def use_bigdl(self):
         self.use_bigdl_flag = True
@@ -123,7 +123,7 @@ class SparkManager():
                 spark_conf = SparkConf()
                 spark_conf.setAll(conf.items())
                 sc = SparkContext(
-                    master='local[*]',
+                    master=f"local[{conf['spark.driver.cores']}]",
                     conf=spark_conf
                 )
 
