@@ -29,7 +29,7 @@ class SparkBuilder():
         self.conf['spark.executor.memory'] = executor_memory
 
         # increase some timeouts
-        self.conf['spark.sql.broadcastTimeout'] = '1800'
+        self.conf['spark.sql.broadcastTimeout'] = '180'
 
         if self.spark_master_url:
 
@@ -122,7 +122,7 @@ class SparkManager():
                 spark_conf = SparkConf()
                 spark_conf.setAll(conf.items())
                 sc = SparkContext(
-                    master='local[*]',
+                    master=f"local[{conf['spark.driver.cores']}]",
                     conf=spark_conf
                 )
 
