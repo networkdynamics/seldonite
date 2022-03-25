@@ -160,7 +160,10 @@ class Graph(base.BaseStage):
 
         # explode entities
         entities_df = df.select('id', 'publish_date', sfuncs.explode(sfuncs.col('entities')).alias('entities')) \
-                        .select('id', 'publish_date', sfuncs.col('entities.entity').alias('entity'), sfuncs.col('entities.type').alias('entity_type'))
+                        .select('id', 'publish_date', sfuncs.col('entities.entity').alias('entity'), sfuncs.col('entities.type').alias('entity_type'), sfuncs.col('entities.position').alias('entity_position'))
+
+        # only keep entities with a high up position in text
+        entities_df = entities_df.where(sfuncs.col('entity_position') < 1000)
 
         # find shared entity edges
         edges_df = entities_df.alias('df1').join(entities_df.alias('df2'), \

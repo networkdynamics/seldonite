@@ -5,10 +5,11 @@ from seldonite.sources import news
 
 def main(args):
     source = news.CSV(args.input)
-    collector = collect.Collector(source)
+    collector = collect.Collector(source) \
+        .limit_num_articles(40)
 
     nl_processor = nlp.NLP(collector) \
-        .get_entities()
+        .get_entities(blacklist_entities=['Reuters'])
 
     graph_constructor = graphs.Graph(nl_processor) \
         .build_entity_dag()
