@@ -1,3 +1,4 @@
+import matplotlib.pyplot as plt
 import networkx as nx
 
 from seldonite import base
@@ -25,7 +26,18 @@ class Visualize(base.BaseStage):
         for edge in edges:
             G.add_edge(edge['old_id'], edge['new_id'], entity=edge['entity'])
 
-        nx.draw(G)
+        pos = nx.spring_layout(G)
+        nx.draw(
+            G, pos, edge_color='black', width=1, linewidths=1,
+            node_size=500, node_color='pink', alpha=0.9,
+            labels={node: G.nodes[node]['title'] for node in G.nodes()}
+        )
+        nx.draw_networkx_edge_labels(
+            G, pos,
+            edge_labels={edge: G.edges[edge]['entity'] for edge in G.edges()},
+            font_color='red'
+        )
+        plt.show()
 
 
     def _process(self, spark_manager):

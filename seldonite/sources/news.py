@@ -109,6 +109,7 @@ class CSV(BaseSource):
         return self._apply_default_filters(df, spark_manager, url_only, max_articles)
 
 
+
 class BaseCommonCrawl(BaseSource):
     def _set_spark_options(self, spark_builder: spark_tools.SparkBuilder):
 

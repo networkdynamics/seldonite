@@ -1,18 +1,12 @@
 import argparse
 
-from seldonite import graphs, sources, collect, nlp, run, visualize
+from seldonite import graphs, collect, nlp, run, visualize
+from seldonite.sources import other
 
 def main(args):
-    source = sources.CSV(args.input)
-    collector = collect.Collector(source)
+    graph_source = other.GraphCSV(args.nodes_path, args.edges_path)
 
-    nl_processor = nlp.NLP(collector) \
-        .get_entities()
-
-    graph_constructor = graphs.Graph(nl_processor) \
-        .build_entity_dag()
-
-    visualizer = visualize.Visualize(graph_constructor) \
+    visualizer = visualize.Visualize(graph_source) \
         .show_entity_dag_graph()
 
     runner = run.Runner(visualizer)
@@ -21,7 +15,8 @@ def main(args):
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('-i', '--input')
+    parser.add_argument('-n', '--nodes-path')
+    parser.add_argument('-e', '--edges-path')
     args = parser.parse_args()
 
     main(args)

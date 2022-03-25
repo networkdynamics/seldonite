@@ -2,7 +2,8 @@ import os
 
 import pyspark.sql as psql
 
-from seldonite import filters, sources
+from seldonite import filters
+from seldonite.sources import news
 from seldonite.spark import spark_tools
 
 
@@ -12,7 +13,7 @@ class Collector:
 
     Can use a variety of search methods
     '''
-    source: sources.BaseSource
+    source: news.BaseSource
 
     def __init__(self, source):
         self.source = source
@@ -97,8 +98,8 @@ class Collector:
 
             # tokenize text
             spark_session = spark_manager.get_spark_session()
-            tokens_df = filters.political.preprocess_text(spark_session, df.select('url', 'all_text'))
-            df = df.join(tokens_df, 'url').drop('all_text')
+            df = filters.political.preprocess_text(spark_session, df)
+            df = df.drop('all_text')
 
             # drop invalid rows
             df = df.filter(df['tokens'].isNotNull())

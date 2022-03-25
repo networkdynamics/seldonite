@@ -2,10 +2,11 @@ import argparse
 
 import networkx as nx
 
-from seldonite import graphs, sources, collect, nlp, run
+from seldonite import graphs, collect, nlp, run
+from seldonite.sources import news
 
 def main(args):
-    source = sources.CSV(args.input)
+    source = news.CSV(args.input)
     collector = collect.Collector(source)
     collector.limit_num_articles(10)
 

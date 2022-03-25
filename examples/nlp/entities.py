@@ -1,10 +1,11 @@
 import argparse
 
-from seldonite import collect, run, sources, nlp
+from seldonite import collect, run, nlp
+from seldonite.sources import news
 
 def main(args):
 
-    csv_source = sources.CSV(args.input)
+    csv_source = news.CSV(args.input)
     collector = collect.Collector(csv_source)
 
     nl_processor = nlp.NLP(collector) \

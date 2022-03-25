@@ -2,7 +2,7 @@ import argparse
 import json
 import os
 
-from seldonite import sources
+from seldonite.sources import news
 from seldonite import collect
 
 
@@ -13,7 +13,7 @@ def main(args):
     else:
         sites = [args.site]
         
-    cc_source = sources.CommonCrawl(master_url=args.master_url, sites=sites)
+    cc_source = news.CommonCrawl(master_url=args.master_url, sites=sites)
 
     collector = collect.Collector(cc_source) \
                     .by_keywords([args.keyword])

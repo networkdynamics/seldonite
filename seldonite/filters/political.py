@@ -1,5 +1,4 @@
-__author__ = 'Lukas Gebhard <freerunningapps@gmail.com>'
-
+import collections
 import doctest
 import os
 
@@ -57,17 +56,25 @@ def preprocess(texts, tokenizer_path=os.path.join('.', 'pon_classifier')):
     tokens = tokenizer.texts_to_sequences(texts)
     return sequence.pad_sequences(tokens, maxlen=PADDING_SIZE)
 
-def preprocess_text_to_list(texts, **kwargs):
-        return (array.tolist() for array in preprocess(texts, **kwargs))
-
-def preprocess_text_partition(iter):
-    return utils.map_col_with_index(iter, 'url', 'all_text', 'tokens', preprocess_text_to_list)
+def preprocess_text_partition(iter, **kwargs):
+    rows = []
+    texts = []
+    for row in iter:
+        rows.append(row)
+        texts.append(row['all_text'])
+    mapped_col = (array.tolist() for array in preprocess(texts, **kwargs))
+    for row, mapped_item in zip(rows, mapped_col):
+        yield psql.Row(url=row['url'], title=row['title'], text=row['text'], publish_date=row['publish_date'], all_text=row['all_text'], tokens=mapped_item)
 
 def preprocess_text(session, df):
     tokens_rdd = df.rdd.mapPartitions(preprocess_text_partition)
     
     schema = psql.types.StructType([
         psql.types.StructField("url", psql.types.StringType(), True),
+        psql.types.StructField("title", psql.types.StringType(), True),
+        psql.types.StructField("text", psql.types.StringType(), True),
+        psql.types.StructField("publish_date", psql.types.StringType(), True),
+        psql.types.StructField("all_text", psql.types.StringType(), True),
         psql.types.StructField("tokens", psql.types.ArrayType(psql.types.IntegerType()), True)
     ])
     return session.createDataFrame(tokens_rdd, schema)
