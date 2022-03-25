@@ -178,8 +178,9 @@ class Graph(base.BaseStage):
                            .where(sfuncs.col('rank') == 1) \
                            .drop('rank')
 
-        # clean up edges dataframe
-        edges_df = edges_df.drop('date_diff', 'entity', 'entity_type')
+        # clean up dataframes
+        df = df.drop('entities')
+        edges_df = edges_df.drop('old_publish_date', 'new_publish_date')
 
         return df, edges_df
 

@@ -1,7 +1,5 @@
 import argparse
 
-import networkx as nx
-
 from seldonite import graphs, sources, collect, nlp, run
 
 def main(args):
@@ -15,17 +13,17 @@ def main(args):
         .build_entity_dag()
 
     runner = run.Runner(graph_constructor)
-    G, map_df = runner.get_obj()
+    nodes, edges = runner.to_pandas()
 
-    nx.write_weighted_edgelist(G, args.graph)
-    map_df.to_csv(args.map, index=False, sep=' ')
+    nodes.to_csv(args.nodes, index=False)
+    edges.to_csv(args.edges, index=False)
 
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
     parser.add_argument('-i', '--input')
-    parser.add_argument('-g', '--graph')
-    parser.add_argument('-m', '--map')
+    parser.add_argument('-g', '--edges')
+    parser.add_argument('-m', '--nodes')
     args = parser.parse_args()
 
     main(args)

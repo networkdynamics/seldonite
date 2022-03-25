@@ -64,6 +64,11 @@ class Runner():
                     .option("collection", table) \
                     .save()
 
+    def run(self):
+        spark_builder = self._get_spark_builder()
+        with spark_builder.start_session() as spark_manager:
+            self.input._process(spark_manager)
+
     def _get_spark_builder(self):
         spark_builder = spark_tools.SparkBuilder(self.spark_master_url, executor_cores=self.executor_cores, executor_memory=self.executor_memory, 
                                                  num_executors=self.num_executors, driver_cores=self.driver_cores, driver_memory=self.driver_memory, 
