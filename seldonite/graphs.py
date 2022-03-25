@@ -83,11 +83,6 @@ class Graph(base.BaseStage):
         # node values for word nodes
         word_nodes_df = word_nodes_df.select('id', sfuncs.col('word').alias('value'))
 
-        # get rid of word nodes with no edges (possibly due to 0 weight edges being removed)
-        word_nodes_df = word_nodes_df.join(edges_df, (word_nodes_df['id'] == edges_df['id1']) | (word_nodes_df['id'] == edges_df['id2']), 'inner') \
-                                     .select('id', 'value') \
-                                     .drop_duplicates(['id', 'value'])
-
         # node values for article nodes
 
         # concat all top tfidf words
