@@ -26,11 +26,13 @@ class NLP(base.BaseStage):
         self.tfidf_load_path = load_path
         return self
 
-    def get_entities(self):
+    def get_entities(self, blacklist_entities=[]):
         self.do_get_entities = True
+        self.blacklist_entities = blacklist_entities
         return self
 
     def _get_entities(self, df, spark_manager):
+        df.cache()
         df = df.withColumnRenamed('text', 'article_text')
         df = df.withColumn('text', psql.functions.concat(df['title'], psql.functions.lit('. '), df['article_text']))
 
@@ -71,6 +73,7 @@ class NLP(base.BaseStage):
 
         # add index
         df = df.withColumn("id", sfuncs.monotonically_increasing_id())
+        df.cache()
 
         df = ner_model.transform(df)
 
@@ -79,13 +82,23 @@ class NLP(base.BaseStage):
 
         # flatten output features column to get indices & value
         entity_df = df.select('id', sfuncs.explode(sfuncs.col('ner_chunk')).name('ner_chunk')) \
-                      .select('id', sfuncs.col('ner_chunk.result').alias('entity'), sfuncs.col('ner_chunk.metadata.entity').alias('type'), sfuncs.col('ner_chunk.metadata.confidence').alias('confidence'))
+                      .select('id', sfuncs.col('ner_chunk.begin').alias('position'), sfuncs.col('ner_chunk.result').alias('entity'), sfuncs.col('ner_chunk.metadata.entity').alias('type'), sfuncs.col('ner_chunk.metadata.confidence').alias('confidence'))
 
-        CONFIDENCE_THRESHOLD = 0.8
-        entity_df = entity_df.where(sfuncs.col('confidence') >= CONFIDENCE_THRESHOLD) \
-                             .drop_duplicates(['id', 'entity'])
+        # drop blacklisted entities
+        entity_df = entity_df.where(~sfuncs.col('entity').isin(self.blacklist_entities))
+
+        # drop entities with low confidence
+        CONFIDENCE_THRESHOLD = 0.75
+        entity_df = entity_df.where(sfuncs.col('confidence') >= CONFIDENCE_THRESHOLD)
+
+        # only keep unique entities extracted from articles, drop entities with later positions in text
+        w = psql.Window.partitionBy(['id', 'entity']).orderBy(sfuncs.asc('position'))
+        entity_df = entity_df.withColumn('rank',sfuncs.row_number().over(w)) \
+                             .where(sfuncs.col('rank') == 1) \
+                             .drop('rank')
+
         entity_df = entity_df.groupby('id') \
-                             .agg(sfuncs.collect_list(sfuncs.struct(sfuncs.col('entity'),sfuncs.col('type'))).name('entities'))
+                             .agg(sfuncs.collect_list(sfuncs.struct(sfuncs.col('entity'), sfuncs.col('type'), sfuncs.col('position'))).name('entities'))
 
         df = df.drop('ner_chunk')
         df = df.join(entity_df, 'id')
