@@ -76,9 +76,6 @@ class NLP(base.BaseStage):
         entity_df = df.select('id', sfuncs.explode(sfuncs.col('ner_chunk')).name('ner_chunk')) \
                       .select('id', sfuncs.col('ner_chunk.begin').alias('position'), sfuncs.col('ner_chunk.result').alias('entity'), sfuncs.col('ner_chunk.metadata.entity').alias('type'))
 
-        # drop blacklisted entities
-        entity_df = entity_df.where(~sfuncs.col('entity').isin(self.blacklist_entities))
-
         # lemmatize
         documentAssembler = sparknlp.DocumentAssembler() \
             .setInputCol("entity") \
@@ -105,6 +102,10 @@ class NLP(base.BaseStage):
         entity_df = entity_df.drop('entity', 'document', 'token', 'normalized')
         entity_df = entity_df.withColumn('entity', sfuncs.col('lemma').getItem(0).getField('result'))
         entity_df = entity_df.drop('lemma')
+
+        # drop blacklisted entities
+        for blacklist_entity in self.blacklist_entities:
+            entity_df = entity_df.where(~sfuncs.col('entity').rlike(blacklist_entity))
 
         # only keep unique entities extracted from articles, drop entities with later positions in text
         w = psql.Window.partitionBy(['id', 'entity']).orderBy(sfuncs.asc('position'))
