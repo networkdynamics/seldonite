@@ -147,19 +147,40 @@ class Graph(base.BaseStage):
         return graph, node_map_df
 
     def _build_entity_dag(self, df: psql.DataFrame, spark_manager):
+
+        # add index
+        df = df.withColumn("id", sfuncs.monotonically_increasing_id())
+
         df.cache()
 
         # explode entities
-        entities_df = df.select('*', sfuncs.explode(sfuncs.col('entities')).alias('entities')) \
-                        .select('url', 'text', 'title', 'publish_date', sfuncs.col('entities.entity').alias('entitiy'), sfuncs.col('entities.type').alias('entity_type'))
+        entities_df = df.select('id', 'publish_date', sfuncs.explode(sfuncs.col('entities')).alias('entities')) \
+                        .select('id', 'publish_date', sfuncs.col('entities.entity').alias('entity'), sfuncs.col('entities.type').alias('entity_type'), sfuncs.col('entities.position').alias('entity_position'))
+
+        # only keep entities with a high up position in text
+        entities_df = entities_df.where(sfuncs.col('entity_position') < 1000)
 
         # find shared entity edges
         edges_df = entities_df.alias('df1').join(entities_df.alias('df2'), \
-                                                 (sfuncs.col('df1.entity') == sfuncs.col('df2.entity')) & (sfuncs.col('df1.entity_type') == sfuncs.col('df2.entity_type')) & (sfuncs.col('df1.publish_date') > sfuncs.col('df2.publish_date')), \
-                                                 'inner')
+                                                 (sfuncs.col('df1.entity') == sfuncs.col('df2.entity')) & (sfuncs.col('df1.entity_type') == sfuncs.col('df2.entity_type')) & (sfuncs.col('df1.publish_date') < sfuncs.col('df2.publish_date')), \
+                                                 'inner') \
+                                           .select(sfuncs.col('df1.id').alias('old_id'), sfuncs.col('df2.id').alias('new_id'), sfuncs.col('df1.publish_date').alias('old_publish_date'), sfuncs.col('df2.publish_date').alias('new_publish_date'), \
+                                                   sfuncs.col('df1.entity').alias('entity'), sfuncs.col('df1.entity_type').alias('entity_type'))
 
         # find day diff between news events
-        edges_df = edges_df.withColumn('date_diff', )
+        edges_df = edges_df.withColumn('date_diff', sfuncs.datediff(sfuncs.col('new_publish_date'), sfuncs.col('old_publish_date')))
+
+        # for each news story and entity, only keep edge to next news story that mentions the entity, not all future stories
+        w = psql.Window.partitionBy(['old_id', 'entity', 'entity_type']).orderBy(sfuncs.asc('date_diff'))
+        edges_df = edges_df.withColumn('rank',sfuncs.row_number().over(w)) \
+                           .where(sfuncs.col('rank') == 1) \
+                           .drop('rank')
+
+        # clean up dataframes
+        df = df.drop('entities')
+        edges_df = edges_df.drop('old_publish_date', 'new_publish_date')
+
+        return df, edges_df
 
     def _set_spark_options(self, spark_builder):
         spark_builder.use_spark_nlp()

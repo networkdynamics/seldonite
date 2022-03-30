@@ -1,4 +1,7 @@
 from contextlib import contextmanager
+from typing import Iterable
+
+import pyspark.sql as psql
 
 from seldonite import base
 from seldonite.spark import spark_tools
@@ -25,20 +28,25 @@ class Runner():
     def start_and_process(self):
         spark_builder = self._get_spark_builder()
         with spark_builder.start_session() as spark_manager:
-            df = self.input._process(spark_manager)
-            yield df
-
-        return df
+            res = self.input._process(spark_manager)
+            yield res
 
     def to_pandas(self):
         '''
-        :return: Pandas dataframe
+        :return: Pandas dataframe or List of Dataframes
         '''
 
-        with self.start_and_process() as df:
-            df = df.toPandas()
+        with self.start_and_process() as res:
+            if isinstance(res, psql.DataFrame):
+                return res.toPandas()
+            elif isinstance(res, Iterable):
+                dfs = []
+                
+                for element in res:
+                    assert isinstance(element, psql.DataFrame)
+                    dfs.append(element.toPandas())
 
-        return df
+                return dfs
 
     def send_to_database(self, connection_string, database, table):
         spark_builder = self._get_spark_builder()
@@ -55,6 +63,11 @@ class Runner():
                     .option("database", database) \
                     .option("collection", table) \
                     .save()
+
+    def run(self):
+        spark_builder = self._get_spark_builder()
+        with spark_builder.start_session() as spark_manager:
+            self.input._process(spark_manager)
 
     def _get_spark_builder(self):
         spark_builder = spark_tools.SparkBuilder(self.spark_master_url, executor_cores=self.executor_cores, executor_memory=self.executor_memory, 

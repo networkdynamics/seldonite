@@ -1,9 +1,8 @@
 import argparse
-import datetime
 import json
 import os
 
-from seldonite import sources
+from seldonite.sources import news
 from seldonite import collect
 
 
@@ -14,12 +13,10 @@ def main(args):
     else:
         sites = [args.site]
         
-    cc_source = sources.NewsCrawl(master_url=args.master_url)
+    cc_source = news.CommonCrawl(master_url=args.master_url, sites=sites)
 
     collector = collect.Collector(cc_source) \
-                    .in_date_range(datetime.date(2021, 12, 1), datetime.date(2021, 12, 1)) \
-                    .on_sites(sites) \
-                    .limit_num_articles(10)
+                    .by_keywords([args.keyword])
     articles = collector.fetch()
 
     json_articles = json.dumps([article.to_dict() for article in articles], indent=2)
@@ -39,6 +36,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--master-url')
     parser.add_argument('--site')
+    parser.add_argument('--keyword')
     parser.add_argument('--out')
     args = parser.parse_args()
 

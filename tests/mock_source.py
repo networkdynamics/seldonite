@@ -1,6 +1,6 @@
-from seldonite import sources
+from seldonite.sources import news
 
-class MockSource(sources.BaseSource):
+class MockSource(news.BaseSource):
     def __init__(self, can_keyword_filter=False, articles=None):
         super().__init__()
 
