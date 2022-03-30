@@ -22,6 +22,7 @@ class Collector:
         self.max_articles = None
         self.political_filter = False
         self.get_distinct_articles = False
+        self.get_sample = False
         self.sites=[]
 
     def in_date_range(self, start_date, end_date):
@@ -68,6 +69,12 @@ class Collector:
 
     def distinct(self):
         self.get_distinct_articles = True
+        return self
+
+    def sample(self, num_articles):
+        self.get_sample = True
+        self.num_sample_articles = num_articles
+        return self
 
     def _set_spark_options(self, spark_builder: spark_tools.SparkBuilder):
 
@@ -125,6 +132,10 @@ class Collector:
 
             # filter where prediction is higher than threshold
             df = df.where(f"{pred_col} > {self.political_filter_threshold}")
+
+        if self.get_sample:
+            num_rows = df.count()
+            df = df.sample(fraction=(self.num_sample_articles + 1) / num_rows).limit(self.num_sample_articles)
 
         if self.max_articles:
             return df.limit(self.max_articles)

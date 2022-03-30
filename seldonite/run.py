@@ -5,7 +5,7 @@ from seldonite.spark import spark_tools
 
 class Runner():
     def __init__(self, input: base.BaseStage, master_url=None, num_executors=1, executor_cores=16, executor_memory='128g', driver_cores=2, driver_memory='128g', python_executable='python', spark_conf={}):
-        assert isinstance(input, base.BaseStage), "Input must be a Seldonite stage."
+        #assert isinstance(input, base.BaseStage), "Input must be a Seldonite stage."
         self.input = input
 
         self.spark_master_url = master_url

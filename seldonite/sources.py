@@ -232,6 +232,8 @@ class MongoDB(BaseSource):
                        .option("partitionerOptions.samplesPerPartition", "20") \
                        .load()
 
+        df = df.repartition(spark_manager.get_num_cpus() * 8)
+
         return self._apply_default_filters(df, spark_manager, url_only, max_articles)
 
 
