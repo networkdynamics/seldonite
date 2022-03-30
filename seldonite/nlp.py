@@ -74,14 +74,37 @@ class NLP(base.BaseStage):
 
         # flatten output features column to get indices & value
         entity_df = df.select('id', sfuncs.explode(sfuncs.col('ner_chunk')).name('ner_chunk')) \
-                      .select('id', sfuncs.col('ner_chunk.begin').alias('position'), sfuncs.col('ner_chunk.result').alias('entity'), sfuncs.col('ner_chunk.metadata.entity').alias('type'), sfuncs.col('ner_chunk.metadata.confidence').alias('confidence'))
+                      .select('id', sfuncs.col('ner_chunk.begin').alias('position'), sfuncs.col('ner_chunk.result').alias('entity'), sfuncs.col('ner_chunk.metadata.entity').alias('type'))
 
         # drop blacklisted entities
         entity_df = entity_df.where(~sfuncs.col('entity').isin(self.blacklist_entities))
 
-        # drop entities with low confidence
-        CONFIDENCE_THRESHOLD = 0.75
-        entity_df = entity_df.where(sfuncs.col('confidence') >= CONFIDENCE_THRESHOLD)
+        # lemmatize
+        documentAssembler = sparknlp.DocumentAssembler() \
+            .setInputCol("entity") \
+            .setOutputCol("document")
+
+        tokenizer = sparknlp.annotator.Tokenizer() \
+            .setInputCols(["document"]) \
+            .setOutputCol("token")
+
+        normalizer = sparknlp.annotator.Normalizer() \
+            .setInputCols(["token"]) \
+            .setOutputCol("normalized") \
+            .setLowercase(True) \
+            .setCleanupPatterns(["""[^\w\d\s]"""])
+
+        lemmatizer = sparknlp.annotator.LemmatizerModel.pretrained("lemma_spacylookup","en") \
+            .setInputCols(["normalized"]) \
+            .setOutputCol("lemma")
+
+        lemmatizer_pipeline = sparkml.Pipeline(stages=[documentAssembler, tokenizer, normalizer, lemmatizer])
+
+        entity_df = lemmatizer_pipeline.fit(entity_df).transform(entity_df)
+
+        entity_df = entity_df.drop('entity', 'document', 'token', 'normalized')
+        entity_df = entity_df.withColumn('entity', sfuncs.col('lemma').getItem(0).getField('result'))
+        entity_df = entity_df.drop('lemma')
 
         # only keep unique entities extracted from articles, drop entities with later positions in text
         w = psql.Window.partitionBy(['id', 'entity']).orderBy(sfuncs.asc('position'))
@@ -96,6 +119,8 @@ class NLP(base.BaseStage):
         df = df.join(entity_df, 'id')
         df = df.drop('id')
 
+        df.cache()
+        df.collect()
         return df
 
     def _tfidf(self, df: psql.DataFrame, spark_manager):
