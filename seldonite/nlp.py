@@ -35,15 +35,15 @@ class NLP(base.BaseStage):
         df = df.withColumnRenamed('text', 'article_text')
         df = df.withColumn('text', psql.functions.concat(df['title'], psql.functions.lit('. '), df['article_text']))
 
-        document_assembler = DocumentAssembler() \
+        document_assembler = sparknlp.DocumentAssembler() \
             .setInputCol('text') \
             .setOutputCol('document')
 
-        tokenizer = Tokenizer() \
+        tokenizer = sparknlp.annotator.Tokenizer() \
             .setInputCols(['document']) \
             .setOutputCol('token')
 
-        tokenClassifier = LongformerForTokenClassification \
+        tokenClassifier = sparknlp.annotator.LongformerForTokenClassification \
             .pretrained('longformer_large_token_classifier_conll03', 'en') \
             .setInputCols(['token', 'document']) \
             .setOutputCol('ner') \
@@ -51,11 +51,11 @@ class NLP(base.BaseStage):
             .setMaxSentenceLength(512)
 
         # since output column is IOB/IOB2 style, NerConverter can extract entities
-        ner_converter = NerConverter() \
+        ner_converter = sparknlp.annotator.NerConverter() \
             .setInputCols(['document', 'token', 'ner']) \
-            .setOutputCol('entities')
+            .setOutputCol('ner_chunk')
 
-        pipeline = Pipeline(stages=[
+        entity_pipeline = sparkml.Pipeline(stages=[
             document_assembler, 
             tokenizer,
             tokenClassifier,
@@ -66,7 +66,8 @@ class NLP(base.BaseStage):
         df = df.withColumn("id", sfuncs.monotonically_increasing_id())
         df.cache()
 
-        df = entity_pipeline.fit(df).transform(df)
+        df = entity_pipeline.fit(df) \
+                            .transform(df)
 
         df = df.drop('text', 'document', 'sentence', 'token', 'embeddings', 'ner')
         df = df.withColumnRenamed('article_text', 'text')
