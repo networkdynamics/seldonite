@@ -2,7 +2,6 @@ import os
 import re
 import subprocess
 
-from gensim import models, corpora
 import nltk
 import pyspark.sql as psql
 import pyspark.sql.functions as sfuncs
@@ -36,46 +35,38 @@ class NLP(base.BaseStage):
         df = df.withColumnRenamed('text', 'article_text')
         df = df.withColumn('text', psql.functions.concat(df['title'], psql.functions.lit('. '), df['article_text']))
 
-        documentAssembler = sparknlp.DocumentAssembler()\
-                .setInputCol("text")\
-                .setOutputCol("document")
+        document_assembler = DocumentAssembler() \
+            .setInputCol('text') \
+            .setOutputCol('document')
 
-        sentenceDetector = sparknlp.annotator.SentenceDetector()\
-                .setInputCols(["document"])\
-                .setOutputCol("sentence")
+        tokenizer = Tokenizer() \
+            .setInputCols(['document']) \
+            .setOutputCol('token')
 
-        tokenizer = sparknlp.annotator.Tokenizer()\
-                .setInputCols(["sentence"])\
-                .setOutputCol("token")
+        tokenClassifier = LongformerForTokenClassification \
+            .pretrained('longformer_large_token_classifier_conll03', 'en') \
+            .setInputCols(['token', 'document']) \
+            .setOutputCol('ner') \
+            .setCaseSensitive(True) \
+            .setMaxSentenceLength(512)
 
-        embeddings = sparknlp.annotator.WordEmbeddingsModel.pretrained("glove_100d", "en")\
-                    .setInputCols("sentence", "token") \
-                    .setOutputCol("embeddings")
+        # since output column is IOB/IOB2 style, NerConverter can extract entities
+        ner_converter = NerConverter() \
+            .setInputCols(['document', 'token', 'ner']) \
+            .setOutputCol('entities')
 
-        ner = sparknlp.annotator.NerDLModel.pretrained("nerdl_fewnerd_100d")\
-                .setInputCols(["sentence", "token", "embeddings"])\
-                .setOutputCol("ner")
-
-        ner_converter = sparknlp.annotator.NerConverter()\
-            .setInputCols(['document', 'token', 'ner'])\
-            .setOutputCol('ner_chunk')
-
-        entity_pipeline = sparkml.Pipeline(stages=[documentAssembler, sentenceDetector,
-                tokenizer,
-                embeddings,
-                ner,
-                ner_converter])
-
-        spark = spark_manager.get_spark_session()
-        empty_data = spark.createDataFrame([[""]]).toDF("text")
-
-        ner_model = entity_pipeline.fit(empty_data)
+        pipeline = Pipeline(stages=[
+            document_assembler, 
+            tokenizer,
+            tokenClassifier,
+            ner_converter
+        ])
 
         # add index
         df = df.withColumn("id", sfuncs.monotonically_increasing_id())
         df.cache()
 
-        df = ner_model.transform(df)
+        df = entity_pipeline.fit(df).transform(df)
 
         df = df.drop('text', 'document', 'sentence', 'token', 'embeddings', 'ner')
         df = df.withColumnRenamed('article_text', 'text')
