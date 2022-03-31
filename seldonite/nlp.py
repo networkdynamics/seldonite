@@ -43,8 +43,8 @@ class NLP(base.BaseStage):
             .setInputCols(['document']) \
             .setOutputCol('token')
 
-        tokenClassifier = sparknlp.annotator.LongformerForTokenClassification \
-            .pretrained('longformer_large_token_classifier_conll03', 'en') \
+        token_classifier = sparknlp.annotator.DistilBertForTokenClassification \
+            .pretrained('distilbert_base_token_classifier_conll03', 'en') \
             .setInputCols(['token', 'document']) \
             .setOutputCol('ner') \
             .setCaseSensitive(True) \
@@ -58,7 +58,7 @@ class NLP(base.BaseStage):
         entity_pipeline = sparkml.Pipeline(stages=[
             document_assembler, 
             tokenizer,
-            tokenClassifier,
+            token_classifier,
             ner_converter
         ])
 

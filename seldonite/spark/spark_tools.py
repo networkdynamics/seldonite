@@ -29,7 +29,7 @@ class SparkBuilder():
         self.conf['spark.executor.memory'] = executor_memory
 
         # increase some timeouts
-        self.conf['spark.sql.broadcastTimeout'] = '180'
+        self.conf['spark.sql.broadcastTimeout'] = '1440'
 
         if self.spark_master_url:
 

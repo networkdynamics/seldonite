@@ -9,7 +9,7 @@ def main(args):
         .limit_num_articles(40)
 
     nl_processor = nlp.NLP(collector) \
-        .get_entities(blacklist_entities=['Reuters', 'Reuters.com Register'])
+        .get_entities(blacklist_entities=['.*reuters.*'])
 
     graph_constructor = graphs.Graph(nl_processor) \
         .build_entity_dag()
