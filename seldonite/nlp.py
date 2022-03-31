@@ -25,15 +25,19 @@ class NLP(base.BaseStage):
         self.tfidf_load_path = load_path
         return self
 
-    def get_entities(self, blacklist_entities=[]):
+    def get_entities(self, blacklist_entities=[], max_string_search=None):
         self.do_get_entities = True
         self.blacklist_entities = blacklist_entities
+        self.entity_max_string_search = max_string_search
         return self
 
     def _get_entities(self, df, spark_manager):
         df.cache()
         df = df.withColumnRenamed('text', 'article_text')
         df = df.withColumn('text', psql.functions.concat(df['title'], psql.functions.lit('. '), df['article_text']))
+
+        if self.entity_max_string_search:
+            df = df.withColumn('text', sfuncs.substring(sfuncs.col('text'), 1, self.entity_max_string_search))
 
         document_assembler = sparknlp.DocumentAssembler() \
             .setInputCol('text') \
