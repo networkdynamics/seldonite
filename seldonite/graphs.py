@@ -47,6 +47,12 @@ class Graph(base.BaseStage):
                      .unionByName(words_df, allowMissingColumns=True) \
                      .withColumn('id', sfuncs.monotonically_increasing_id())
 
+        df.unpersist()
+
+        # increase number of partitions because of new columns
+        num_partitions = nodes_df.rdd.getNumPartitions()
+        nodes_df = nodes_df.repartition(num_partitions * 8)
+
         nodes_df.cache()
 
         # explode tfidf again to get edges
@@ -93,7 +99,9 @@ class Graph(base.BaseStage):
                                         .groupby('id') \
                                         .agg(sfuncs.concat_ws(",", sfuncs.collect_list(sfuncs.col('word'))).alias('top_tfidf'))
 
+
         article_nodes_df = article_nodes_df.join(article_node_values_df, 'id')
+
         article_nodes_df = article_nodes_df.drop('word')
 
         # get article length
