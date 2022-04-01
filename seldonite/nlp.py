@@ -52,7 +52,8 @@ class NLP(base.BaseStage):
             .setInputCols(['token', 'document']) \
             .setOutputCol('ner') \
             .setCaseSensitive(True) \
-            .setMaxSentenceLength(512)
+            .setMaxSentenceLength(512) \
+            .setBatchSize(64)
 
         # since output column is IOB/IOB2 style, NerConverter can extract entities
         ner_converter = sparknlp.annotator.NerConverter() \

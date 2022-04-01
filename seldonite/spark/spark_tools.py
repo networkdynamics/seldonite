@@ -31,6 +31,9 @@ class SparkBuilder():
         # increase some timeouts
         self.conf['spark.sql.broadcastTimeout'] = '1800'
 
+        # trying to prevent large task timeouts
+        self.conf['spark.sql.autoBroadcastJoinThreshold'] = '-1'
+
         if self.spark_master_url:
 
             # set spark container image
