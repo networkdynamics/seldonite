@@ -34,7 +34,7 @@ def get_edges_df(article_nodes_df):
                                     .select(sfuncs.col('id').alias('title_id'), sfuncs.col('title.word').alias('title_word'), sfuncs.col('title.value').alias('title_value'))
 
     # combine title and text edges
-    edges_df = text_edges_df.join(title_edges_df, 
+    edges_df = text_edges_df.join(sfuncs.broadcast(title_edges_df), 
                                 on=((text_edges_df['text_id'] == title_edges_df['title_id']) & (text_edges_df['text_word'] == title_edges_df['title_word'])), 
                                 how='full') \
                             .select(sfuncs.coalesce('title_id', 'text_id').alias('id1'), sfuncs.coalesce('text_word', 'title_word').alias('word'), 'text_value', 'title_value')
@@ -109,7 +109,7 @@ class Graph(base.BaseStage):
                                         .agg(sfuncs.concat_ws(",", sfuncs.collect_list(sfuncs.col('word'))).alias('top_tfidf'))
 
 
-        article_nodes_df = article_nodes_df.join(article_node_values_df, 'id')
+        article_nodes_df = article_nodes_df.join(sfuncs.broadcast(article_node_values_df), 'id')
 
         article_nodes_df = article_nodes_df.drop('word')
 
@@ -157,7 +157,7 @@ class Graph(base.BaseStage):
             nodes_df.unpersist()
 
         # create mapping pandas dataframe
-        node_map_pdf = node_map_df.toPandas()
+        node_map_df = node_map_df.toPandas()
 
         # create nx graph
         graph = nx.Graph()
@@ -168,7 +168,7 @@ class Graph(base.BaseStage):
     def _build_entity_dag(self, df: psql.DataFrame, spark_manager):
 
         # add index
-        df = df.select('url', 'text', 'title', 'publish_date')
+        df = df.select('url', 'text', 'title', 'publish_date', 'entities')
         df = df.withColumn("id", sfuncs.monotonically_increasing_id())
 
         df.cache()
