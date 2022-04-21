@@ -111,10 +111,18 @@ class CSV(BaseSource):
 
 
 class BaseCommonCrawl(BaseSource):
+
+    def __init__(self, aws_access_key, aws_secret_key):
+        super().__init__()
+        self.aws_access_key = aws_access_key
+        self.aws_secret_key = aws_secret_key
+
     def _set_spark_options(self, spark_builder: spark_tools.SparkBuilder):
 
-        # anon creds for aws
-        spark_builder.set_conf('spark.hadoop.fs.s3a.aws.credentials.provider', 'org.apache.hadoop.fs.s3a.AnonymousAWSCredentialsProvider')
+        # creds for aws
+        spark_builder.set_conf('spark.hadoop.fs.s3a.aws.credentials.provider', 'org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider')
+        spark_builder.set_conf('spark.hadoop.fs.s3a.access.key', self.aws_access_key)
+        spark_builder.set_conf('spark.hadoop.fs.s3a.secret.key', self.aws_secret_key)
         spark_builder.set_conf('spark.hadoop.fs.s3a.impl', 'org.apache.hadoop.fs.s3a.S3AFileSystem')
 
         # add packages to allow pulling from AWS S3
@@ -130,11 +138,11 @@ class CommonCrawl(BaseCommonCrawl):
     Source that uses Spark to search CommonCrawl
     '''
 
-    def __init__(self):
+    def __init__(self, aws_access_key, aws_secret_key):
         '''
         params:
         '''
-        super().__init__()
+        super().__init__(aws_access_key, aws_secret_key)
 
         self.can_keyword_filter = True
         # we apply newsplease heuristics in spark job
@@ -182,11 +190,11 @@ class NewsCrawl(BaseCommonCrawl):
     Source that uses Spark to search CommonCrawl's NewsCrawl dataset
     '''
 
-    def __init__(self):
+    def __init__(self, aws_access_key, aws_secret_key):
         '''
         params:
         '''
-        super().__init__()
+        super().__init__(aws_access_key, aws_secret_key)
         self.can_keyword_filter = True
 
         # we apply newsplease heuristics in spark job
