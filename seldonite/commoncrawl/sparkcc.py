@@ -377,7 +377,11 @@ class CCIndexWarcSparkJob(CCIndexSparkJob):
 
         self.log_aggregators(spark_manager)
 
+        if rdd.count() == 0:
+            raise ValueError('No articles found with these filters')
+
         return rdd.toDF()
+
 
     def run(self, spark_manager, url_only):
         self.url_only = url_only
