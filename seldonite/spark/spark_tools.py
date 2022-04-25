@@ -29,7 +29,10 @@ class SparkBuilder():
         self.conf['spark.executor.memory'] = executor_memory
 
         # increase some timeouts
-        self.conf['spark.sql.broadcastTimeout'] = '1440'
+        self.conf['spark.sql.broadcastTimeout'] = '1800'
+
+        # trying to prevent large task timeouts
+        self.conf['spark.sql.autoBroadcastJoinThreshold'] = '-1'
 
         if self.spark_master_url:
 
@@ -56,7 +59,7 @@ class SparkBuilder():
             self.archives.append(f'{conda_package_path}#environment')
 
         else:
-            #self.conf['spark.executor.instances'] = 1
+            self.conf['spark.executor.instances'] = 1
             self.conf['spark.ui.showConsoleProgress'] = 'true'
 
             os.environ['PYSPARK_PYTHON'] = python_executable

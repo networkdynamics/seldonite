@@ -6,6 +6,41 @@ from sparknlp.pretrained import PretrainedPipeline
 
 from seldonite import base
 
+def get_nodes_df(df):
+    # explode tfidf into rows and get unique word nodes
+    words_df = df.select('id', sfuncs.explode(sfuncs.col('text_top_n')).alias('map')) \
+                .union(df.select('id', sfuncs.explode(sfuncs.col('title_top_n')).alias('map'))) \
+                .select('id', sfuncs.col('map.word').alias('word'))
+
+    # get words which appear in multiple articles
+    words_df = words_df.drop_duplicates(['id', 'word']) \
+                    .groupby('word') \
+                    .count()
+
+    words_df = words_df.where(sfuncs.col('count') > 1) \
+                    .select('word')
+
+    # create distinct ids for each node
+    nodes_df = df.drop('id') \
+                .unionByName(words_df, allowMissingColumns=True) \
+                .withColumn('id', sfuncs.monotonically_increasing_id())
+
+    return nodes_df
+
+def get_edges_df(article_nodes_df):
+    text_edges_df = article_nodes_df.select('id', sfuncs.explode(sfuncs.col('text_top_n')).alias('text')) \
+                                    .select(sfuncs.col('id').alias('text_id'), sfuncs.col('text.word').alias('text_word'), sfuncs.col('text.value').alias('text_value'))
+    title_edges_df = article_nodes_df.select('id', sfuncs.explode(sfuncs.col('title_top_n')).alias('title')) \
+                                    .select(sfuncs.col('id').alias('title_id'), sfuncs.col('title.word').alias('title_word'), sfuncs.col('title.value').alias('title_value'))
+
+    # combine title and text edges
+    edges_df = text_edges_df.join(sfuncs.broadcast(title_edges_df), 
+                                on=((text_edges_df['text_id'] == title_edges_df['title_id']) & (text_edges_df['text_word'] == title_edges_df['title_word'])), 
+                                how='full') \
+                            .select(sfuncs.coalesce('title_id', 'text_id').alias('id1'), sfuncs.coalesce('text_word', 'title_word').alias('word'), 'text_value', 'title_value')
+
+    return edges_df
+
 class Graph(base.BaseStage):
 
     def __init__(self, input):
@@ -29,39 +64,19 @@ class Graph(base.BaseStage):
 
         df.cache()
 
-        # explode tfidf into rows and get unique word nodes
-        words_df = df.select('id', sfuncs.explode(sfuncs.col('text_top_n')).alias('map')) \
-                     .union(df.select('id', sfuncs.explode(sfuncs.col('title_top_n')).alias('map'))) \
-                     .select('id', sfuncs.col('map.word').alias('word'))
+        nodes_df = get_nodes_df(df)
+        df.unpersist()
 
-        # get words which appear in multiple articles
-        words_df = words_df.drop_duplicates(['id', 'word']) \
-                           .groupby('word') \
-                           .count()
-
-        words_df = words_df.where(sfuncs.col('count') > 1) \
-                           .select('word')
-
-        # create distinct ids for each node
-        nodes_df = df.drop('id') \
-                     .unionByName(words_df, allowMissingColumns=True) \
-                     .withColumn('id', sfuncs.monotonically_increasing_id())
+        # increase number of partitions because of new columns
+        num_partitions = nodes_df.rdd.getNumPartitions()
+        nodes_df = nodes_df.repartition(num_partitions * 8)
 
         nodes_df.cache()
 
         # explode tfidf again to get edges
         article_nodes_df = nodes_df.where(sfuncs.col('text_top_n').isNotNull() & sfuncs.col('title_top_n').isNotNull())
 
-        text_edges_df = article_nodes_df.select('id', sfuncs.explode(sfuncs.col('text_top_n')).alias('text')) \
-                                        .select(sfuncs.col('id').alias('text_id'), sfuncs.col('text.word').alias('text_word'), sfuncs.col('text.value').alias('text_value'))
-        title_edges_df = article_nodes_df.select('id', sfuncs.explode(sfuncs.col('title_top_n')).alias('title')) \
-                                         .select(sfuncs.col('id').alias('title_id'), sfuncs.col('title.word').alias('title_word'), sfuncs.col('title.value').alias('title_value'))
-
-        # combine title and text edges
-        edges_df = text_edges_df.join(title_edges_df, 
-                                      on=((text_edges_df['text_id'] == title_edges_df['title_id']) & (text_edges_df['text_word'] == title_edges_df['title_word'])), 
-                                      how='full') \
-                                .select(sfuncs.coalesce('title_id', 'text_id').alias('id1'), sfuncs.coalesce('text_word', 'title_word').alias('word'), 'text_value', 'title_value')
+        edges_df = get_edges_df(article_nodes_df)
         edges_df.cache()
 
         # divide each weight by scalar
@@ -93,7 +108,9 @@ class Graph(base.BaseStage):
                                         .groupby('id') \
                                         .agg(sfuncs.concat_ws(",", sfuncs.collect_list(sfuncs.col('word'))).alias('top_tfidf'))
 
-        article_nodes_df = article_nodes_df.join(article_node_values_df, 'id')
+
+        article_nodes_df = article_nodes_df.join(sfuncs.broadcast(article_node_values_df), 'id')
+
         article_nodes_df = article_nodes_df.drop('word')
 
         # get article length
@@ -132,23 +149,26 @@ class Graph(base.BaseStage):
 
         # convert to networkx format and collect
         edges = edges_df.rdd.map(lambda row: (row['id1'], row['id2'], row['weight'])).collect()
+        edges_df.unpersist()
 
         if self.export_articles:
             # get nodes dataframe in pandas
-            nodes_df = nodes_df.toPandas()
+            nodes_pdf = nodes_df.toPandas()
+            nodes_df.unpersist()
+
+        # create mapping pandas dataframe
+        node_map_df = node_map_df.toPandas()
 
         # create nx graph
         graph = nx.Graph()
         graph.add_weighted_edges_from(edges)
-
-        # create mapping pandas dataframe
-        node_map_df = node_map_df.toPandas()
 
         return graph, node_map_df
 
     def _build_entity_dag(self, df: psql.DataFrame, spark_manager):
 
         # add index
+        df = df.select('url', 'text', 'title', 'publish_date', 'entities')
         df = df.withColumn("id", sfuncs.monotonically_increasing_id())
 
         df.cache()
