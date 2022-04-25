@@ -31,7 +31,11 @@ class CCSparkJob:
     warc_input_failed = None
     
 
-    def __init__(self, local_temp_dir=None, log_level='INFO'):
+    def __init__(self, aws_access_key, aws_secret_key, local_temp_dir=None, log_level='INFO'):
+        
+        self.aws_access_key = aws_access_key
+        self.aws_secret_key = aws_secret_key
+        
         # Local temporary directory, used to buffer content from S3
         self.local_temp_dir = local_temp_dir
         # Logging level
@@ -114,9 +118,7 @@ class CCSparkJob:
         base_dir = os.path.abspath(os.path.dirname(__file__))
 
         # S3 client (not thread-safe, initialize outside parallelized loop)
-        no_sign_request = botocore.client.Config(
-            signature_version=botocore.UNSIGNED)
-        s3client = boto3.client('s3', config=no_sign_request)
+        s3client = boto3.client('s3', aws_access_key_id=self.aws_access_key, aws_secret_access_key=self.aws_secret_key)
 
         for uri in iterator:
             self.warc_input_processed.add(1)
@@ -310,9 +312,7 @@ class CCIndexWarcSparkJob(CCIndexSparkJob):
         self.csv = csv
 
     def fetch_process_warc_records(self, rows):
-        no_sign_request = botocore.client.Config(
-            signature_version=botocore.UNSIGNED)
-        s3client = boto3.client('s3', config=no_sign_request)
+        s3client = boto3.client('s3', aws_access_key_id=self.aws_access_key, aws_secret_access_key=self.aws_secret_key)
         bucketname = "commoncrawl"
         no_parse = (not self.warc_parse_http_header)
 

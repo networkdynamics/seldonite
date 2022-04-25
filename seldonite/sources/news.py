@@ -171,7 +171,7 @@ class CommonCrawl(BaseCommonCrawl):
             raise ValueError('Set crawls either using `set_crawls` or `in_date_range`')
 
         # create the spark job
-        job = CCIndexFetchNewsJob()
+        job = CCIndexFetchNewsJob(self.aws_access_key, self.aws_secret_key)
         job.set_query_options(sites=self.sites, crawls=self.crawls, lang=self.lang, limit=max_articles, url_black_list=self.url_black_list)
         return job.run(spark_manager, url_only=url_only, keywords=self.keywords, 
                        start_date=self.start_date, end_date=self.end_date)
@@ -207,7 +207,7 @@ class NewsCrawl(BaseCommonCrawl):
         listings = utils.get_news_crawl_listing(start_date=self.start_date, end_date=self.end_date)
 
         # create the spark job
-        job = FetchNewsJob()
+        job = FetchNewsJob(self.aws_access_key, self.aws_secret_key)
         return job.run(spark_manager, listings, url_only=url_only, keywords=self.keywords, limit=max_articles, sites=self.sites)
 
 class MongoDB(BaseSource):
