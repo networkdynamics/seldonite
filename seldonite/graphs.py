@@ -1,4 +1,3 @@
-from html import entities
 import networkx as nx
 import pyspark.sql.functions as sfuncs
 import pyspark.sql as psql

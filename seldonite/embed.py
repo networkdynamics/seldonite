@@ -1,19 +1,21 @@
+from email import header
 import pyspark.sql.functions as sfuncs
 import pyspark.sql as psql
 from sparknlp.pretrained import PretrainedPipeline
 
 from seldonite import base, graphs
 
-class Visualize(base.BaseStage):
+class Embed(base.BaseStage):
     def __init__(self, input):
         super().__init__(input)
         self._do_news2vec_embed = False
 
-    def news2vec_embed(self):
+    def news2vec_embed(self, embedding_path):
         self._do_news2vec_embed = True
+        self._news2vec_embedding_path = embedding_path
         return self
 
-    def _news2vec_embed(self, df):
+    def _news2vec_embed(self, df, spark_manager):
         
         Z1 = 1
         Z2 = 2
@@ -79,15 +81,27 @@ class Visualize(base.BaseStage):
         article_nodes_df = article_nodes_df.withColumn('day_of_week', sfuncs.concat(sfuncs.lit('wd_'), sfuncs.dayofweek('publish_date')))
 
         # compile into column
-        article_nodes_df = article_nodes_df.withColumn('value', sfuncs.concat_ws(',', 
-                                                                                 sfuncs.col('top_tfidf'), 
-                                                                                 sfuncs.col('num_words_ord'), 
-                                                                                 sfuncs.col('sentiment'), 
-                                                                                 sfuncs.col('month'), 
-                                                                                 sfuncs.col('day_of_month'), 
-                                                                                 sfuncs.col('day_of_week')))
+        article_df = article_nodes_df.withColumn('value', sfuncs.concat_ws(',', 
+                                                                           sfuncs.col('top_tfidf'), 
+                                                                           sfuncs.col('num_words_ord'), 
+                                                                           sfuncs.col('sentiment'), 
+                                                                           sfuncs.col('month'), 
+                                                                           sfuncs.col('day_of_month'), 
+                                                                           sfuncs.col('day_of_week')))
 
-        article_nodes_df = article_nodes_df.select('id', 'value')
+        # load embeddings from file
+        spark = spark_manager.get_spark_session()
+        embeddings_df = spark.read.csv(self._news2vec_embedding_path, inferSchema=True, header=True)
+
+        # sort out columns
+        embeddings_df = embeddings_df.withColumnRenamed('_c0', 'token')
+
+        embed_col_names = embeddings_df.columns
+        embed_col_names.remove('token')
+        embeddings_df = embeddings_df.withColumn('embedding', sfuncs.array([sfuncs.col(col) for col in embed_col_names]))
+        embeddings_df = embeddings_df.drop(*embed_col_names)
+
+        article_df = article_df.join(embeddings_df, sfuncs.col(''))
 
         return article_nodes_df
 
@@ -96,4 +110,4 @@ class Visualize(base.BaseStage):
         res = self.input._process(spark_manager)
 
         if self._do_news2vec_embed:
-            self._news2vec_embed(res)
+            self._news2vec_embed(res, spark_manager)
