@@ -371,7 +371,7 @@ class CCIndexWarcSparkJob(CCIndexSparkJob):
 
         num_warcs = warc_recs.count()
         if num_warcs == 0:
-            raise ValueError()
+            raise ValueError('No articles found with these filters')
 
         rdd = warc_recs.mapPartitions(self.fetch_process_warc_records)
 
