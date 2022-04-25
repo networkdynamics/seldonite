@@ -106,6 +106,7 @@ class CSV(BaseSource):
         spark = spark_manager.get_spark_session()
         df = spark.read.csv(self.csv_path, inferSchema=True, header=True, multiLine=True, escape='"')
         df = df.select('title', 'text', 'publish_date', 'url')
+        df = df.repartition(spark_manager.get_num_cpus() * 8)
         return self._apply_default_filters(df, spark_manager, url_only, max_articles)
 
 
