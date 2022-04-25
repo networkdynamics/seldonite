@@ -167,14 +167,21 @@ class Graph(base.BaseStage):
                                            .select(sfuncs.col('df1.id').alias('old_id'), sfuncs.col('df2.id').alias('new_id'), sfuncs.col('df1.publish_date').alias('old_publish_date'), sfuncs.col('df2.publish_date').alias('new_publish_date'), \
                                                    sfuncs.col('df1.entity').alias('entity'), sfuncs.col('df1.entity_type').alias('entity_type'))
 
+        # create single edge between articles with multiple shared entities
+        edges_df = edges_df.groupby('old_id', 'old_publish_date', 'new_id', 'new_publish_date').agg(sfuncs.collect_set(sfuncs.struct('entity', 'entity_type')).alias('entities'))
+
         # find day diff between news events
         edges_df = edges_df.withColumn('date_diff', sfuncs.datediff(sfuncs.col('new_publish_date'), sfuncs.col('old_publish_date')))
 
-        # for each news story and entity, only keep edge to next news story that mentions the entity, not all future stories
-        w = psql.Window.partitionBy(['old_id', 'entity', 'entity_type']).orderBy(sfuncs.asc('date_diff'))
+        # for each news story and entity set, only keep edge to next news story that mentions the entity set, not all future stories
+        w = psql.Window.partitionBy(['old_id', 'entities']).orderBy(sfuncs.asc('date_diff'))
         edges_df = edges_df.withColumn('rank',sfuncs.row_number().over(w)) \
                            .where(sfuncs.col('rank') == 1) \
                            .drop('rank')
+
+        # re-explode entities
+        edges_df = edges_df.select('old_id', 'old_publish_date', 'new_id', 'new_publish_date', sfuncs.explode(sfuncs.col('entities')).alias('entities')) \
+                           .select('old_id', 'old_publish_date', 'new_id', 'new_publish_date', sfuncs.col('entities.entity').alias('entity'), sfuncs.col('entities.entity_type').alias('entity_type'))
 
         # clean up dataframes
         df = df.drop('entities')
