@@ -13,24 +13,25 @@ class Collector:
 
     Can use a variety of search methods
     '''
-    source: news.BaseSource
+    _source: news.BaseSource
 
     def __init__(self, source):
-        self.source = source
+        self._source = source
 
-        self.keywords = None
-        self.url_only_val = False
-        self.max_articles = None
-        self.political_filter = False
-        self.get_distinct_articles = False
-        self.get_sample = False
+        self._keywords = None
+        self._url_only_val = False
+        self._max_articles = None
+        self._political_filter = False
+        self._get_distinct_articles = False
+        self._get_sample = False
+        self._filter_countries = False
         self.sites=[]
 
     def in_date_range(self, start_date, end_date):
         '''
         Set dates to fetch news from, range is inclusive
         '''
-        self.source.set_date_range(start_date, end_date)
+        self._source.set_date_range(start_date, end_date)
         return self
 
     def by_keywords(self, keywords):
@@ -38,48 +39,53 @@ class Collector:
         Set some keywords to filter by
         '''
 
-        self.keywords = keywords
-        self.source.set_keywords(keywords)
+        self._keywords = keywords
+        self._source.set_keywords(keywords)
 
         return self
 
     def only_political_articles(self, threshold=0.5):
-        self.political_filter = True
-        self.political_filter_threshold = threshold
+        self._political_filter = True
+        self._political_filter_threshold = threshold
         return self
 
     def on_sites(self, sites):
-        self.source.set_sites(sites)
+        self._source.set_sites(sites)
         return self
 
     def limit_num_articles(self, limit):
-        self.max_articles = limit
+        self._max_articles = limit
         return self
 
     def url_only(self, set=True):
-        self.url_only_val = set
+        self._url_only_val = set
         return self
 
     def in_language(self, lang='eng'):
-        self.source.set_language(lang)
+        self._source.set_language(lang)
         return self
 
     def exclude_in_url(self, url_wildcards):
-        self.source.set_url_blacklist(url_wildcards)
+        self._source.set_url_blacklist(url_wildcards)
         return self
 
     def distinct(self):
-        self.get_distinct_articles = True
+        self._get_distinct_articles = True
         return self
 
     def sample(self, num_articles):
-        self.get_sample = True
-        self.num_sample_articles = num_articles
+        self._get_sample = True
+        self._num_sample_articles = num_articles
         return self
+
+    def mentions_countries(self, countries=[], min_num_countries=0):
+        self._mentions_countries = countries
+        self._min_num_countries = min_num_countries
+        self._filter_countries = True
 
     def _set_spark_options(self, spark_builder: spark_tools.SparkBuilder):
 
-        if self.political_filter:
+        if self._political_filter:
             spark_builder.use_bigdl()
 
             this_dir_path = os.path.dirname(os.path.abspath(__file__))
@@ -87,16 +93,19 @@ class Collector:
             pol_class_archive = f"{political_classifier_path}#pon_classifier"
             spark_builder.add_archive(pol_class_archive)
 
-        self.source._set_spark_options(spark_builder)
+        self._source._set_spark_options(spark_builder)
 
     def _process(self, spark_manager):
         self._check_args()
-        df = self.source.fetch(spark_manager, self.max_articles, url_only=self.url_only_val)
+        df = self._source.fetch(spark_manager, self._max_articles, url_only=self._url_only_val)
 
-        if self.get_distinct_articles:
+        if self._get_distinct_articles:
             df = df.drop_duplicates(['url'])
 
-        if self.political_filter:
+        if self._filter_countries:
+            
+
+        if self._political_filter:
 
             # create concat of title and text
             df = df.filter(df['title'].isNotNull())
@@ -132,18 +141,18 @@ class Collector:
             df = pred_df
 
             # filter where prediction is higher than threshold
-            df = df.where(f"{pred_col} > {self.political_filter_threshold}")
+            df = df.where(f"{pred_col} > {self._political_filter_threshold}")
 
-        if self.get_sample:
+        if self._get_sample:
             num_rows = df.count()
-            df = df.sample(fraction=(self.num_sample_articles + 1) / num_rows).limit(self.num_sample_articles)
+            df = df.sample(fraction=(self._num_sample_articles + 1) / num_rows).limit(self._num_sample_articles)
 
-        if self.max_articles:
-            return df.limit(self.max_articles)
+        if self._max_articles:
+            return df.limit(self._max_articles)
         else:
             return df
 
 
     def _check_args(self):
-        if self.url_only_val and self.political_filter:
+        if self._url_only_val and self._political_filter:
             raise ValueError('Cannot check political articles and get only URLs. Please remove one of the options.')
