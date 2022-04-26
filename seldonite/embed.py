@@ -1,6 +1,7 @@
 from email import header
 import pyspark.sql.functions as sfuncs
 import pyspark.sql as psql
+import pyspark.ml as pml
 from sparknlp.pretrained import PretrainedPipeline
 
 from seldonite import base, graphs
@@ -50,7 +51,8 @@ class Embed(base.BaseStage):
                                         .withColumn('rank',sfuncs.row_number().over(w)) \
                                         .where(sfuncs.col('rank') <= TOP_NUM_NODE) \
                                         .groupby('id') \
-                                        .agg(sfuncs.concat_ws(",", sfuncs.collect_list(sfuncs.col('word'))).alias('top_tfidf'))
+                                        .pivot('rank') \
+                                        .agg(sfuncs.max('word'))
 
 
         article_nodes_df = article_nodes_df.join(sfuncs.broadcast(article_node_values_df), 'id')
@@ -66,6 +68,7 @@ class Embed(base.BaseStage):
                                                                               .when((sfuncs.col('num_words') > 2000) & (sfuncs.col('num_words') <= 3000), 'wc3000') \
                                                                               .when((sfuncs.col('num_words') > 3000) & (sfuncs.col('num_words') <= 5000), 'wc5000') \
                                                                               .when(sfuncs.col('num_words') > 5000, 'wcmax'))
+        article_nodes_df = article_nodes_df.drop('num_words')
 
         # get article sentiment
         sentiment_pipeline = PretrainedPipeline("classifierdl_bertwiki_finance_sentiment_pipeline", lang = "en")
@@ -78,36 +81,37 @@ class Embed(base.BaseStage):
         # get day of month
         article_nodes_df = article_nodes_df.withColumn('day_of_month', sfuncs.concat(sfuncs.lit('d_'), sfuncs.dayofmonth('publish_date')))
         # get of week
-        article_nodes_df = article_nodes_df.withColumn('day_of_week', sfuncs.concat(sfuncs.lit('wd_'), sfuncs.dayofweek('publish_date')))
-
-        # compile into column
-        article_df = article_nodes_df.withColumn('value', sfuncs.concat_ws(',', 
-                                                                           sfuncs.col('top_tfidf'), 
-                                                                           sfuncs.col('num_words_ord'), 
-                                                                           sfuncs.col('sentiment'), 
-                                                                           sfuncs.col('month'), 
-                                                                           sfuncs.col('day_of_month'), 
-                                                                           sfuncs.col('day_of_week')))
+        article_df = article_nodes_df.withColumn('day_of_week', sfuncs.concat(sfuncs.lit('wd_'), sfuncs.dayofweek('publish_date')))
 
         # load embeddings from file
         spark = spark_manager.get_spark_session()
-        embeddings_df = spark.read.csv(self._news2vec_embedding_path, inferSchema=True, header=True)
+        embeddings_df = spark.read.csv(self._news2vec_embedding_path, header=True)
 
         # sort out columns
         embeddings_df = embeddings_df.withColumnRenamed('_c0', 'token')
 
         embed_col_names = embeddings_df.columns
         embed_col_names.remove('token')
-        embeddings_df = embeddings_df.withColumn('embedding', sfuncs.array([sfuncs.col(col) for col in embed_col_names]))
+        embeddings_df = embeddings_df.withColumn('token_embedding', sfuncs.array([sfuncs.col(col_name) for col_name in embed_col_names]))
         embeddings_df = embeddings_df.drop(*embed_col_names)
 
-        article_df = article_df.join(embeddings_df, sfuncs.col(''))
+        # creating article embedding
 
-        return article_nodes_df
+        # create zero initialized array
+        article_df = article_df.withColumn('embedding', sfuncs.array([sfuncs.lit(0) for _ in embed_col_names]))
+
+        feature_cols = [str(num) for num in range(1, TOP_NUM_NODE + 1)] + ['num_words_ord', 'sentiment', 'month', 'day_of_week', 'day_of_month']
+        for feature_col in feature_cols:
+            article_df = article_df.join(embeddings_df, sfuncs.col(feature_col) == sfuncs.col('token'))
+            article_df = article_df.withColumn('embedding', sfuncs.zip_with('embedding', 'token_embedding', lambda x, y: x + y))
+            article_df = article_df.drop('token', 'token_embedding')
+
+        article_df = article_df.select('title', 'text', 'publish_date', 'url', 'embedding')
+        return article_df
 
 
     def _process(self, spark_manager):
         res = self.input._process(spark_manager)
 
         if self._do_news2vec_embed:
-            self._news2vec_embed(res, spark_manager)
+            return self._news2vec_embed(res, spark_manager)

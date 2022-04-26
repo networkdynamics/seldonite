@@ -14,13 +14,13 @@ def main(args):
     runner = run.Runner(nl_processor) 
     df = runner.to_pandas()
 
-    df.to_csv(args.out)
+    df.to_csv(args.output)
 
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
     parser.add_argument('-i', '--input')
-    parser.add_argument('-o', '--out')
+    parser.add_argument('-o', '--output')
     parser.add_argument('-m', '--model')
     args = parser.parse_args()
 

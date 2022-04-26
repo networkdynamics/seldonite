@@ -10,10 +10,10 @@ def main(args):
     collector.limit_num_articles(10)
 
     nl_processor = nlp.NLP(collector) \
-        .top_tfidf(20)#, load_path=args.tfidf)
+        .top_tfidf(20, load_path=args.tfidf)
 
     graph_constructor = embed.Embed(nl_processor) \
-        .news2vec_embed(embedding_path=args.embeddings)
+        .news2vec_embed(embedding_path=args.embed)
 
     runner = run.Runner(graph_constructor)
     embeddings = runner.to_pandas()
@@ -25,7 +25,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--input')
     parser.add_argument('--tfidf')
-    parser.add_argument('--embeddings')
+    parser.add_argument('--embed')
     parser.add_argument('--output')
     args = parser.parse_args()
 

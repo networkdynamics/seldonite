@@ -217,8 +217,27 @@ class NLP(base.BaseStage):
         df = df.withColumn(all_tokens_col, sfuncs.concat(df['text_tokens'], df['title_tokens']))
         cv = sparkml.feature.CountVectorizer()
         cv.setInputCol(all_tokens_col)
-
         cv_model = cv.fit(df)
+
+        idf = sparkml.feature.IDF()
+        # perform save / load operations if required
+        if self.tfidf_load_path:
+            idf_model = sparkml.feature.IDFModel.load(self.tfidf_load_path)
+        else:
+            count_feat_col = "all_raw_features"
+            cv_model.setInputCol(all_tokens_col)
+            cv_model.setOutputCol(count_feat_col)
+            df = cv_model.transform(df)
+            df.cache()
+
+            idf.setInputCol(count_feat_col)
+            
+            idf_model = idf.fit(df)
+            df = df.drop(count_feat_col)
+
+            if self.tfidf_save_path:
+                idf_model.write().overwrite().save(self.tfidf_save_path)
+
         df = df.drop(all_tokens_col)
 
         # create vocab lookup
@@ -246,17 +265,8 @@ class NLP(base.BaseStage):
             
             # get inverse document frequency
             tfidf_col = f"{text_col}_features"
-            idf = sparkml.feature.IDF(inputCol=count_feat_col, outputCol=tfidf_col)
-            
-            # perform save / load operations if required
-            if self.tfidf_load_path:
-                idf_model = sparkml.feature.IDFModel.load(os.path.join(self.tfidf_load_path, f"{text_col}_saved_idf.model"))
-            else:
-                idf_model = idf.fit(df)
-
-                if self.tfidf_save_path:
-                    idf_model.write().overwrite().save(os.path.join(self.tfidf_save_path, f"{text_col}_saved_idf.model"))
-
+            idf_model.setInputCol(count_feat_col)
+            idf_model.setOutputCol(tfidf_col)
             df = idf_model.transform(df)
 
             # flatten output features column to get indices & value
