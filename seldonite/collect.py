@@ -1,11 +1,13 @@
 import os
 
 import pyspark.sql as psql
+import pyspark.sql.functions as sfuncs
 
 from seldonite import filters
+from seldonite.helpers import utils
 from seldonite.sources import news
 from seldonite.spark import spark_tools
-from seldonite.helpers import utils
+
 
 class Collector:
     '''
@@ -78,7 +80,7 @@ class Collector:
         self._num_sample_articles = num_articles
         return self
 
-    def mentions_countries(self, countries=[], min_num_countries=0):
+    def mentions_countries(self, countries=None, min_num_countries=None):
         self._mentions_countries = countries
         self._min_num_countries = min_num_countries
         self._filter_countries = True
@@ -103,11 +105,15 @@ class Collector:
             df = df.drop_duplicates(['url'])
 
         if self._filter_countries:
-            df = df.withColumn('all_text', psql.functions.concat(df['title'], psql.functions.lit(' '), df['text']))
-
-            udfCountry = psql.functions.udf(utils.get_countries, psql.types.ArrayType(psql.types.StringType(), True))
+            udfCountry = sfuncs.udf(utils.get_countries, psql.types.ArrayType(psql.types.StringType(), True))
             df = df.withColumn('countries', udfCountry(df.all_text))
-            df = df.drop('all_text')
+            if self._min_num_countries:
+                df = df.where(sfuncs.size(sfuncs.col('countries')) >= self._min_num_countries)
+            if self._mentions_countries:
+                for country in self._mentions_countries:
+                    df = df.where(sfuncs.array_contains('countries', country))
+
+            df = df.drop('countries')
 
         if self._political_filter:
 

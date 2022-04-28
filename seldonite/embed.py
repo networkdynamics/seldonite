@@ -6,6 +6,15 @@ from sparknlp.pretrained import PretrainedPipeline
 
 from seldonite import base, graphs
 
+def accumulate_embeddings(df, embeddings_df, feature_cols, len_embed, token_col='token', embedding_col='token_embedding'):
+    df = df.withColumn('embedding', sfuncs.array([sfuncs.lit(0) for _ in range(len_embed)]))
+    for feature_col in feature_cols:
+        df = df.join(embeddings_df, sfuncs.col(feature_col) == sfuncs.col(token_col))
+        df = df.withColumn('embedding', sfuncs.zip_with('embedding', embedding_col, lambda x, y: x + y))
+        df = df.drop(token_col, embedding_col)
+
+    return df
+
 class Embed(base.BaseStage):
     def __init__(self, input):
         super().__init__(input)
@@ -96,15 +105,9 @@ class Embed(base.BaseStage):
         embeddings_df = embeddings_df.drop(*embed_col_names)
 
         # creating article embedding
-
-        # create zero initialized array
-        article_df = article_df.withColumn('embedding', sfuncs.array([sfuncs.lit(0) for _ in embed_col_names]))
-
         feature_cols = [str(num) for num in range(1, TOP_NUM_NODE + 1)] + ['num_words_ord', 'sentiment', 'month', 'day_of_week', 'day_of_month']
-        for feature_col in feature_cols:
-            article_df = article_df.join(embeddings_df, sfuncs.col(feature_col) == sfuncs.col('token'))
-            article_df = article_df.withColumn('embedding', sfuncs.zip_with('embedding', 'token_embedding', lambda x, y: x + y))
-            article_df = article_df.drop('token', 'token_embedding')
+        
+        article_df = accumulate_embeddings(article_df, embeddings_df, feature_cols, len(embed_col_names))
 
         article_df = article_df.select('title', 'text', 'publish_date', 'url', 'embedding')
         return article_df
