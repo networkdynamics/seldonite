@@ -2,10 +2,12 @@ import collections
 import datetime
 import gzip
 import re
+import subprocess
 import zipfile
 
 import botocore
 import boto3
+import geograpy
 import pyspark.sql as psql
 import requests
 from newspaper import Article
@@ -188,3 +190,12 @@ def construct_db_uri(connection_string, database, collection):
         url_path = '/'.join(url_path.split('/')[:-1])
 
     return f"{url_path}/{database}.{collection}{query_string}"
+
+def get_countries(text):
+    try:
+        countries = geograpy.get_geoPlace_context(text).countries
+    except Exception:
+        subprocess.call('geograpy-nltk')
+        countries = geograpy.get_geoPlace_context(text).countries
+        
+    return countries if countries else []

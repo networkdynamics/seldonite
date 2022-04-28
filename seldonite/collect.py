@@ -5,7 +5,7 @@ import pyspark.sql as psql
 from seldonite import filters
 from seldonite.sources import news
 from seldonite.spark import spark_tools
-
+from seldonite.helpers import utils
 
 class Collector:
     '''
@@ -103,7 +103,11 @@ class Collector:
             df = df.drop_duplicates(['url'])
 
         if self._filter_countries:
-            
+            df = df.withColumn('all_text', psql.functions.concat(df['title'], psql.functions.lit(' '), df['text']))
+
+            udfCountry = psql.functions.udf(utils.get_countries, psql.types.ArrayType(psql.types.StringType(), True))
+            df = df.withColumn('countries', udfCountry(df.all_text))
+            df = df.drop('all_text')
 
         if self._political_filter:
 

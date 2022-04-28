@@ -1,15 +1,12 @@
-import subprocess
 from typing import List
 import urllib
 
-from pyspark.sql.functions import *
 import pyspark.sql.functions as sfuncs
-from pyspark.sql.types import ArrayType, StringType, MapType, IntegerType
 import pyspark.sql as psql
-import geograpy
 
-from seldonite import collect, base
 
+from seldonite import base
+from seldonite.helpers import utils
 
 
 class Analyze(base.BaseStage):
@@ -17,23 +14,25 @@ class Analyze(base.BaseStage):
 
     def __init__(self, input):
         self.input = input
-        self.do_articles_over_time = False
-        self.do_article_domains = False
-        self.do_publish_dates = False
+        self._do_articles_over_time = False
+        self._do_article_domains = False
+        self._do_publish_dates = False
 
     def _process(self, spark_manager):
         df = self.input._process(spark_manager)
 
-        if self.do_articles_over_time:
+        if self._do_articles_over_time:
             df = self._process_articles_over_time(df)
-        elif self.do_article_domains:
+        elif self._do_article_domains:
             df = self._process_article_domains(df)
+        elif self._keywords_over_time_flag:
+            df = self._keywords_over_time(df)
 
         return df
 
     def articles_over_time(self, period):
         assert period == 'year' or period == 'month'
-        self.do_articles_over_time = True
+        self._do_articles_over_time = True
         self.articles_over_time_period = period
         return self
 
@@ -52,7 +51,7 @@ class Analyze(base.BaseStage):
         return df
 
     def article_domains(self):
-        self.do_article_domains = True
+        self._do_article_domains = True
 
         return self
 
@@ -67,8 +66,8 @@ class Analyze(base.BaseStage):
         return df
 
     def keywords_over_time(self, keywords: List[str]):
-        self.keywords_over_time_flag = True
-        self.keywords = keywords
+        self._keywords_over_time_flag = True
+        self._keywords = keywords
 
         return self
 
@@ -76,26 +75,16 @@ class Analyze(base.BaseStage):
     def proportion_of_countries(self, df):
         df = df.withColumn('all_text', psql.functions.concat(df['title'], psql.functions.lit(' '), df['text']))
 
-        def countries(text):
-            try:
-                countries = geograpy.get_geoPlace_context(text).countries
-            except Exception:
-                subprocess.call('geograpy-nltk')
-                countries = geograpy.get_geoPlace_context(text).countries
-                
-            return countries if countries else []
-
-        udfCountry = udf(countries, ArrayType(StringType(), True))
+        udfCountry = sfuncs.udf(utils.get_countries, ArrayType(StringType(), True))
         df = df.withColumn('countries', udfCountry(df.all_text))
 
-        
-        key = df.select(explode(df.countries).alias("key"))
+        key = df.select(sfuncs.explode(df.countries).alias("key"))
 
         # TODO: what should I return?
         key.groupBy(col("key")).count()
     
 
-    def keywords_over_time_delal(self, df):
+    def _keywords_over_time(self, df):
 
         df = df.withColumn('all_text', psql.functions.concat(df['title'], psql.functions.lit(' '), df['text']))
 
@@ -104,11 +93,10 @@ class Analyze(base.BaseStage):
         df = df.withColumn('date_year', lit(year_date))
         df = df.withColumn('date_month', lit(month_date))
 
-
-        for keyword in keywords:
+        for keyword in self._keywords:
             df = df.withColumn(keyword, sfuncs.col('all_text').like(f"%{keyword}%"))
 
-        df = df.groupby('date_year', 'date_month').count(*keywords)
+        df = df.groupby('date_year', 'date_month').count(*self._keywords)
 
         return df
             
