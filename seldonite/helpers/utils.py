@@ -7,7 +7,7 @@ import zipfile
 
 import botocore
 import boto3
-import geograpy
+from flashgeotext.geotext import GeoText
 import pyspark.sql as psql
 import requests
 from newspaper import Article
@@ -192,10 +192,7 @@ def construct_db_uri(connection_string, database, collection):
     return f"{url_path}/{database}.{collection}{query_string}"
 
 def get_countries(text):
-    try:
-        countries = geograpy.get_geoPlace_context(text).countries
-    except Exception:
-        subprocess.call('geograpy-nltk')
-        countries = geograpy.get_geoPlace_context(text).countries
+    geotext = GeoText()
+    places = geotext.extract(input_text=text)
         
-    return countries if countries else []
+    return list(places['countries'].keys())

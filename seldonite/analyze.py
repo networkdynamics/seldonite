@@ -4,7 +4,6 @@ import urllib
 import pyspark.sql.functions as sfuncs
 import pyspark.sql as psql
 
-
 from seldonite import base
 from seldonite.helpers import utils
 

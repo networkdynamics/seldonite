@@ -80,10 +80,12 @@ class Collector:
         self._num_sample_articles = num_articles
         return self
 
-    def mentions_countries(self, countries=None, min_num_countries=None):
+    def mentions_countries(self, countries=[], min_num_countries=0, ignore_countries=[]):
         self._mentions_countries = countries
         self._min_num_countries = min_num_countries
+        self._ignore_countries = ignore_countries
         self._filter_countries = True
+        return self
 
     def _set_spark_options(self, spark_builder: spark_tools.SparkBuilder):
 
@@ -105,15 +107,19 @@ class Collector:
             df = df.drop_duplicates(['url'])
 
         if self._filter_countries:
+            df = df.withColumn('all_text', psql.functions.concat(df['title'], psql.functions.lit('. '), df['text']))
             udfCountry = sfuncs.udf(utils.get_countries, psql.types.ArrayType(psql.types.StringType(), True))
             df = df.withColumn('countries', udfCountry(df.all_text))
-            if self._min_num_countries:
+            if self._ignore_countries:
+                for country in self._ignore_countries:
+                    df = df.withColumn('countries', sfuncs.array_remove('countries', country))
+            if self._min_num_countries > 0:
                 df = df.where(sfuncs.size(sfuncs.col('countries')) >= self._min_num_countries)
             if self._mentions_countries:
                 for country in self._mentions_countries:
                     df = df.where(sfuncs.array_contains('countries', country))
-
-            df = df.drop('countries')
+            
+            df = df.drop('all_text')
 
         if self._political_filter:
 

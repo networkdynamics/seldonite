@@ -7,7 +7,7 @@ def main(args):
 
     csv_source = news.CSV(args.input)
     collector = collect.Collector(csv_source) \
-        .mentions_countries(countries=['US'], min_num_countries=2)
+        .mentions_countries(countries=['United States'], min_num_countries=2, ignore_countries=['Georgia'])
 
     runner = run.Runner(collector) 
     df = runner.to_pandas()
