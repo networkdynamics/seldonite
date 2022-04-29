@@ -35,4 +35,4 @@ dependencies:
     - pyzmq
     - tensorflow>=2.1.0
     - bigdl-spark3
-    - geograpy3
+    - flashgeotext
