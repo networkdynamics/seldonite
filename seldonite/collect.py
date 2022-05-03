@@ -50,6 +50,7 @@ class Collector:
         return self
 
     def only_political_articles(self, threshold=0.5):
+        filters.political.ensure_zip_exists()
         self._political_filter = True
         self._political_filter_threshold = threshold
         return self
@@ -98,7 +99,7 @@ class Collector:
     def _set_spark_options(self, spark_builder: spark_tools.SparkBuilder):
 
         if self._political_filter:
-            spark_builder.use_bigdl()
+            #spark_builder.use_bigdl()
 
             this_dir_path = os.path.dirname(os.path.abspath(__file__))
             political_classifier_path = os.path.join(this_dir_path, 'filters', 'pon_classifier.zip')
