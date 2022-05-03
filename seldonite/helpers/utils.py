@@ -8,8 +8,11 @@ import zipfile
 import botocore
 import boto3
 from flashgeotext.geotext import GeoText
+import nltk
 import pyspark.sql as psql
 import requests
+import pyspark.ml as sparkml
+import sparknlp
 from newspaper import Article
 
 def link_to_article(link):
@@ -196,3 +199,84 @@ def get_countries(text):
     places = geotext.extract(input_text=text)
         
     return list(places['countries'].keys())
+
+
+def tokenize(df):
+
+    df = df.withColumn('all_text', psql.functions.concat(df['title'], psql.functions.lit('. '), df['text']))
+
+    try:
+        eng_stopwords = nltk.corpus.stopwords.words('english')
+    except LookupError as e:
+        nltk.download('stopwords')
+        eng_stopwords = nltk.corpus.stopwords.words('english')
+
+    stages = []
+    cols_to_drop = []
+
+    text_col = 'all_text'
+    doc_out_col = f"{text_col}_document"
+    document_assembler = sparknlp.base.DocumentAssembler() \
+        .setInputCol(text_col) \
+        .setOutputCol(doc_out_col)
+        
+    tokenizer_out_col = f"{text_col}_token"
+    tokenizer = sparknlp.annotator.Tokenizer() \
+        .setInputCols(doc_out_col) \
+        .setOutputCol(tokenizer_out_col)
+        
+    # note normalizer defaults to changing all words to lowercase.
+    # Use .setLowercase(False) to maintain input case.
+    normalizer_out_col = f"{text_col}_normalized"
+    normalizer = sparknlp.annotator.Normalizer() \
+        .setInputCols(tokenizer_out_col) \
+        .setOutputCol(normalizer_out_col) \
+        .setLowercase(True)
+        
+    # note that lemmatizer needs a dictionary. So I used the pre-trained
+    # model (note that it defaults to english)
+    lemma_out_col = f"{text_col}_lemma"
+    lemmatizer = sparknlp.annotator.LemmatizerModel.pretrained() \
+        .setInputCols(normalizer_out_col) \
+        .setOutputCol(lemma_out_col)
+        
+    cleaner_out_col = f"{text_col}_clean_lemma"
+    stopwords_cleaner = sparknlp.annotator.StopWordsCleaner() \
+        .setInputCols(lemma_out_col) \
+        .setOutputCol(cleaner_out_col) \
+        .setCaseSensitive(False) \
+        .setStopWords(eng_stopwords)# finisher converts tokens to human-readable output
+
+    finisher_out_col = "tokens"
+    finisher = sparknlp.base.Finisher() \
+        .setInputCols(cleaner_out_col) \
+        .setOutputCols(finisher_out_col) \
+        .setCleanAnnotations(False)
+
+    cols_to_drop.extend([
+        doc_out_col,
+        tokenizer_out_col,
+        normalizer_out_col,
+        lemma_out_col,
+        cleaner_out_col
+    ])
+
+    stages.extend([
+        document_assembler,
+        tokenizer,
+        normalizer,
+        lemmatizer,
+        stopwords_cleaner,
+        finisher
+    ])
+
+    pipeline = sparkml.Pipeline() \
+        .setStages(stages)
+
+    # tokenize, lemmatize, remove stop words
+    df = pipeline.fit(df) \
+                 .transform(df)
+
+    df = df.drop(*cols_to_drop)
+
+    return df

@@ -7,7 +7,7 @@ def main(args):
 
     csv_source = news.CSV(args.input)
     collector = collect.Collector(csv_source) \
-        .by_keywords(['oil', 'gas'])
+        .by_keywords(['wheat', 'corn', 'soy'])
 
     runner = run.Runner(collector) 
     df = runner.to_pandas()

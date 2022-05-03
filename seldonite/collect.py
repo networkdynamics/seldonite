@@ -97,9 +97,10 @@ class Collector:
         self._apply_udf_col = column
 
     def _set_spark_options(self, spark_builder: spark_tools.SparkBuilder):
+        if self._keywords:
+            spark_builder.use_spark_nlp()
 
         if self._political_filter:
-            #spark_builder.use_bigdl()
 
             this_dir_path = os.path.dirname(os.path.abspath(__file__))
             political_classifier_path = os.path.join(this_dir_path, 'filters', 'pon_classifier.zip')
@@ -119,6 +120,12 @@ class Collector:
 
         if self._get_distinct_articles:
             df = df.drop_duplicates(['url'])
+
+        if self._keywords:
+            df = utils.tokenize(df)
+            df = df.withColumn('keyword_exists', sfuncs.array_intersect(sfuncs.col('tokens'), sfuncs.array([sfuncs.lit(keyword) for keyword in self._keywords])))
+            df = df.where(sfuncs.size('keyword_exists') > 0)
+            df = df.drop('tokens', 'all_text')
 
         if self._filter_countries:
             df = df.withColumn('all_text', psql.functions.concat(df['title'], psql.functions.lit('. '), df['text']))
