@@ -96,7 +96,6 @@ class Collector:
         self._apply_udf_col = column
 
     def _set_spark_options(self, spark_builder: spark_tools.SparkBuilder):
-
         if self._political_filter:
             spark_builder.use_bigdl()
 

@@ -9,8 +9,6 @@ dependencies:
   - newspaper3k
   - boto3
   - pyspark==3.1.2
-  - transformers>=4.16
-  - pytorch==1.9.0
   - pandas==1.2.5
   - numpy==1.21.4
   - six==1.16.0
@@ -23,5 +21,6 @@ dependencies:
     - ray[default]
     - pyzmq
     - tensorflow>=2.1.0
-    - bigdl-spark3
+    - bigdl-orca-spark3
+    - bigdl-dllib-spark3
     - flashgeotext
