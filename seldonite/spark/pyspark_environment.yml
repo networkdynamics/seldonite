@@ -1,6 +1,7 @@
 name: seldonite_spark
 channels:
   - conda-forge
+  - pytorch
 dependencies:
   - python=3.7
   - conda-build
@@ -9,7 +10,8 @@ dependencies:
   - boto3
   - pyspark==3.1.2
   - transformers>=4.16
-  - pandas==1.0.3
+  - pytorch==1.9.0
+  - pandas==1.2.5
   - numpy==1.21.4
   - six==1.16.0
   - py4j==0.10.9
