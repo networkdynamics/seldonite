@@ -161,6 +161,7 @@ def batch(df, max_rows=None):
     df = df.withColumn('_row_id', psql.functions.monotonically_increasing_id())
     # Using ntile() because monotonically_increasing_id is discontinuous across partitions
     df = df.withColumn('_partition', psql.functions.ntile(num_partitions).over(psql.window.Window.orderBy(df._row_id))) 
+    df.cache()
 
     for i in range(num_partitions):
         df_batch = df.filter(df._partition == i+1).drop('_row_id', '_partition')

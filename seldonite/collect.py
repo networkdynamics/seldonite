@@ -27,6 +27,7 @@ class Collector:
         self._get_distinct_articles = False
         self._get_sample = False
         self._filter_countries = False
+        self._apply_udf = False
         self.sites=[]
 
     def in_date_range(self, start_date, end_date):
@@ -41,8 +42,10 @@ class Collector:
         Set some keywords to filter by
         '''
 
-        self._keywords = keywords
-        self._source.set_keywords(keywords)
+        if self._source.can_keyword_filter:
+            self._source.set_keywords(keywords)
+        else:
+            self._keywords = keywords
 
         return self
 
@@ -87,6 +90,11 @@ class Collector:
         self._filter_countries = True
         return self
 
+    def apply_udf(self, udf, column):
+        self._apply_udf = True
+        self._udf_to_apply = udf
+        self._apply_udf_col = column
+
     def _set_spark_options(self, spark_builder: spark_tools.SparkBuilder):
 
         if self._political_filter:
@@ -102,6 +110,11 @@ class Collector:
     def _process(self, spark_manager):
         self._check_args()
         df = self._source.fetch(spark_manager, self._max_articles, url_only=self._url_only_val)
+        df.cache()
+
+        if self._apply_udf:
+            df = df.where(sfuncs.col(self._apply_udf_col).isNotNull())
+            df = df.withColumn(self._apply_udf_col, self._udf_to_apply(sfuncs.col(self._apply_udf_col)))
 
         if self._get_distinct_articles:
             df = df.drop_duplicates(['url'])
