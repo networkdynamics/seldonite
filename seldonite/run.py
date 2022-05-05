@@ -7,7 +7,7 @@ from seldonite import base
 from seldonite.spark import spark_tools
 
 class Runner():
-    def __init__(self, input: base.BaseStage, master_url=None, num_executors=1, executor_cores=16, executor_memory='128g', driver_cores=2, driver_memory='128g', python_executable='python', spark_conf={}):
+    def __init__(self, input: base.BaseStage, master_url=None, num_executors=1, executor_cores=16, executor_memory='128g', driver_cores=2, driver_memory='128g', python_executable='python', keep_alive=False, spark_conf={}):
         #assert isinstance(input, base.BaseStage), "Input must be a Seldonite stage."
         self.input = input
 
@@ -19,6 +19,8 @@ class Runner():
         self.driver_cores = driver_cores
         self.spark_conf = spark_conf
         self.python_executable = python_executable
+        self.keep_alive = keep_alive
+        self._spark_manager = None
 
     def get_obj(self):
         with self.start_and_process() as obj:
@@ -26,10 +28,14 @@ class Runner():
         
     @contextmanager
     def start_and_process(self):
-        spark_builder = self._get_spark_builder()
-        with spark_builder.start_session() as spark_manager:
-            res = self.input._process(spark_manager)
-            yield res
+        if self._spark_manager:
+            yield self.input._process(self._spark_manager)
+        else:
+            spark_builder = self._get_spark_builder()
+            with spark_builder.start_session() as spark_manager:
+                res = self.input._process(spark_manager)
+                yield res
+                self._spark_manager = spark_manager
 
     def to_pandas(self):
         '''
@@ -69,10 +75,16 @@ class Runner():
         with spark_builder.start_session() as spark_manager:
             self.input._process(spark_manager)
 
+    def set_spark_manager(self, spark_manager):
+        self._spark_manager = spark_manager
+
+    def get_spark_manager(self):
+        return self._spark_manager
+
     def _get_spark_builder(self):
         spark_builder = spark_tools.SparkBuilder(self.spark_master_url, executor_cores=self.executor_cores, executor_memory=self.executor_memory, 
                                                  num_executors=self.num_executors, driver_cores=self.driver_cores, driver_memory=self.driver_memory, 
-                                                 python_executable=self.python_executable, spark_conf=self.spark_conf)
+                                                 python_executable=self.python_executable, keep_alive=self.keep_alive, spark_conf=self.spark_conf)
 
         self.input._set_spark_options(spark_builder)
 

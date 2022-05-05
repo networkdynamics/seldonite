@@ -6,12 +6,10 @@ from sparknlp.pretrained import PretrainedPipeline
 
 from seldonite import base, graphs
 
-def accumulate_embeddings(df, embeddings_df, feature_cols, len_embed, token_col='token', embedding_col='token_embedding'):
-    df = df.withColumn('embedding', sfuncs.array([sfuncs.lit(0) for _ in range(len_embed)]))
-    for feature_col in feature_cols:
-        df = df.join(embeddings_df, sfuncs.col(feature_col) == sfuncs.col(token_col))
-        df = df.withColumn('embedding', sfuncs.zip_with('embedding', embedding_col, lambda x, y: x + y))
-        df = df.drop(token_col, embedding_col)
+def accumulate_embeddings(df, embeddings_df, len_embed, token_col='token', embedding_col='token_embedding'):
+    df = df.join(embeddings_df, token_col)
+    df = df.groupBy('id').agg(sfuncs.array(*[sfuncs.sum(sfuncs.col(embedding_col)[i]) for i in range(len_embed)]).alias('embedding'))
+    df = df.drop(token_col, embedding_col)
 
     return df
 
@@ -56,17 +54,10 @@ class Embed(base.BaseStage):
         
         # concat all top tfidf words
         w = psql.Window.partitionBy('id').orderBy(sfuncs.desc('weight'))
-        article_node_values_df = word_edges_df.withColumnRenamed('id1', 'id') \
-                                        .withColumn('rank',sfuncs.row_number().over(w)) \
-                                        .where(sfuncs.col('rank') <= TOP_NUM_NODE) \
-                                        .groupby('id') \
-                                        .pivot('rank') \
-                                        .agg(sfuncs.max('word'))
-
-
-        article_nodes_df = article_nodes_df.join(sfuncs.broadcast(article_node_values_df), 'id')
-
-        article_nodes_df = article_nodes_df.drop('word')
+        article_tokens_df = word_edges_df.withColumnRenamed('id1', 'id') \
+                                         .withColumn('rank',sfuncs.row_number().over(w)) \
+                                         .where(sfuncs.col('rank') <= TOP_NUM_NODE) \
+                                         .select('id', sfuncs.col('word').alias('token'))
 
         # get article length
         article_nodes_df = article_nodes_df.withColumn('num_words', sfuncs.size('title_tokens') + sfuncs.size('text_tokens'))
@@ -78,19 +69,24 @@ class Embed(base.BaseStage):
                                                                               .when((sfuncs.col('num_words') > 3000) & (sfuncs.col('num_words') <= 5000), 'wc5000') \
                                                                               .when(sfuncs.col('num_words') > 5000, 'wcmax'))
         article_nodes_df = article_nodes_df.drop('num_words')
+        article_tokens_df = article_tokens_df.union(article_nodes_df.select('id', sfuncs.col('num_words_ord').alias('token')))
 
         # get article sentiment
         sentiment_pipeline = PretrainedPipeline("classifierdl_bertwiki_finance_sentiment_pipeline", lang = "en")
         article_nodes_df = sentiment_pipeline.annotate(article_nodes_df, 'text') \
                                              .select('*', sfuncs.col('class.result').getItem(0).alias('sentiment')) \
                                              .drop('document', 'sentence_embeddings', 'class')
+        article_tokens_df = article_tokens_df.union(article_nodes_df.select('id', sfuncs.col('sentiment').alias('token')))
 
         # get month 
         article_nodes_df = article_nodes_df.withColumn('month', sfuncs.concat(sfuncs.lit('m_'), sfuncs.month('publish_date')))
+        article_tokens_df = article_tokens_df.union(article_nodes_df.select('id', sfuncs.col('month').alias('token')))
         # get day of month
         article_nodes_df = article_nodes_df.withColumn('day_of_month', sfuncs.concat(sfuncs.lit('d_'), sfuncs.dayofmonth('publish_date')))
+        article_tokens_df = article_tokens_df.union(article_nodes_df.select('id', sfuncs.col('day_of_month').alias('token')))
         # get of week
         article_df = article_nodes_df.withColumn('day_of_week', sfuncs.concat(sfuncs.lit('wd_'), sfuncs.dayofweek('publish_date')))
+        article_tokens_df = article_tokens_df.union(article_nodes_df.select('id', sfuncs.col('day_of_week').alias('token')))
 
         # load embeddings from file
         spark = spark_manager.get_spark_session()
@@ -104,11 +100,9 @@ class Embed(base.BaseStage):
         embeddings_df = embeddings_df.withColumn('token_embedding', sfuncs.array([sfuncs.col(col_name) for col_name in embed_col_names]))
         embeddings_df = embeddings_df.drop(*embed_col_names)
 
-        # creating article embedding
-        feature_cols = [str(num) for num in range(1, TOP_NUM_NODE + 1)] + ['num_words_ord', 'sentiment', 'month', 'day_of_week', 'day_of_month']
-        
-        article_df = accumulate_embeddings(article_df, embeddings_df, feature_cols, len(embed_col_names))
+        article_embeds_df = accumulate_embeddings(article_tokens_df, embeddings_df, len(embed_col_names))
 
+        article_df = article_df.join(article_embeds_df, 'id')
         article_df = article_df.select('title', 'text', 'publish_date', 'url', 'embedding')
         return article_df
 

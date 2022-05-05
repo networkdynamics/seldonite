@@ -19,9 +19,8 @@ def test_accumulate_embedding():
     #Create PySpark DataFrame from Pandas
 
     article_data = {
-        'id': [1, 2, 3, 4],
-        'a': ['c', 'c', 'd', 'd'],
-        'b': ['c', 'd', 'c', 'd']
+        'id': [1, 1, 2, 2, 3, 3, 4, 4],
+        'token': ['c', 'c', 'c', 'd', 'd', 'c', 'd', 'd']
     }
     article_p_df = pd.DataFrame(article_data)
     article_df = spark.createDataFrame(article_p_df)
@@ -34,7 +33,7 @@ def test_accumulate_embedding():
     embedding_p_df = pd.DataFrame(embedding_data)
     embedding_df = spark.createDataFrame(embedding_p_df)
 
-    article_embeddings_df = embed.accumulate_embeddings(article_df, embedding_df, ['a', 'b'], 2)
+    article_embeddings_df = embed.accumulate_embeddings(article_df, embedding_df, 2)
 
     article_embeddings = article_embeddings_df.collect()
 
