@@ -88,7 +88,7 @@ class BaseSource:
 
                 df.createOrReplaceTempView("temp")
                 clause = " OR ".join([f"url LIKE '%{site}%'" for site in self.sites])
-                df = spark.sql(f"SELECT text, title, url, publish_date FROM temp WHERE {clause}")
+                df = spark.sql(f"SELECT * FROM temp WHERE {clause}")
 
         if self.url_black_list:
             for blacklist_pattern in self.url_black_list:

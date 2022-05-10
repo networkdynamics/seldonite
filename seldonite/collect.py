@@ -49,10 +49,11 @@ class Collector:
 
         return self
 
-    def only_political_articles(self, threshold=0.5):
+    def only_political_articles(self, threshold=0.5, output=False):
         filters.political.ensure_zip_exists()
         self._political_filter = True
         self._political_filter_threshold = threshold
+        self._political_filter_output = output
         return self
 
     def on_sites(self, sites):
@@ -84,11 +85,12 @@ class Collector:
         self._num_sample_articles = num_articles
         return self
 
-    def mentions_countries(self, countries=[], min_num_countries=0, ignore_countries=[]):
+    def mentions_countries(self, countries=[], min_num_countries=0, ignore_countries=[], output=False):
         self._mentions_countries = countries
         self._min_num_countries = min_num_countries
         self._ignore_countries = ignore_countries
         self._filter_countries = True
+        self._output_countries = output
         return self
 
     def apply_udf(self, udf, column):
@@ -128,9 +130,10 @@ class Collector:
             df = df.drop('tokens', 'all_text')
 
         if self._filter_countries:
-            df = df.withColumn('all_text', psql.functions.concat(df['title'], psql.functions.lit('. '), df['text']))
-            udfCountry = sfuncs.udf(utils.get_countries, psql.types.ArrayType(psql.types.StringType(), True))
-            df = df.withColumn('countries', udfCountry(df.all_text))
+            if 'countries' not in df.columns:
+                df = df.withColumn('all_text', psql.functions.concat(df['title'], psql.functions.lit('. '), df['text']))
+                udfCountry = sfuncs.udf(utils.get_countries, psql.types.ArrayType(psql.types.StringType(), True))
+                df = df.withColumn('countries', udfCountry(df.all_text))
             if self._ignore_countries:
                 for country in self._ignore_countries:
                     df = df.withColumn('countries', sfuncs.array_remove('countries', country))
@@ -141,6 +144,8 @@ class Collector:
                     df = df.where(sfuncs.array_contains('countries', country))
             
             df = df.drop('all_text')
+            if not self._output_countries:
+                df = df.drop('countries')
 
         if self._political_filter:
 
@@ -179,6 +184,9 @@ class Collector:
 
             # filter where prediction is higher than threshold
             df = df.where(f"{pred_col} > {self._political_filter_threshold}")
+
+            if not self._political_filter_output:
+                df = df.drop('political_pred')
 
         if self._get_sample:
             num_rows = df.count()

@@ -102,7 +102,7 @@ class Embed(base.BaseStage):
 
         article_embeds_df = accumulate_embeddings(article_tokens_df, embeddings_df, len(embed_col_names))
 
-        article_df = article_df.join(article_embeds_df, 'id')
+        article_df = article_nodes_df.join(article_embeds_df, 'id')
         article_df = article_df.select('title', 'text', 'publish_date', 'url', 'embedding')
         return article_df
 
