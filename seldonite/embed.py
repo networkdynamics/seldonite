@@ -85,7 +85,7 @@ class Embed(base.BaseStage):
         article_nodes_df = article_nodes_df.withColumn('day_of_month', sfuncs.concat(sfuncs.lit('d_'), sfuncs.dayofmonth('publish_date')))
         article_tokens_df = article_tokens_df.union(article_nodes_df.select('id', sfuncs.col('day_of_month').alias('token')))
         # get of week
-        article_df = article_nodes_df.withColumn('day_of_week', sfuncs.concat(sfuncs.lit('wd_'), sfuncs.dayofweek('publish_date')))
+        article_nodes_df = article_nodes_df.withColumn('day_of_week', sfuncs.concat(sfuncs.lit('wd_'), sfuncs.dayofweek('publish_date')))
         article_tokens_df = article_tokens_df.union(article_nodes_df.select('id', sfuncs.col('day_of_week').alias('token')))
 
         # load embeddings from file
