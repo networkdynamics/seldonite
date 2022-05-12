@@ -33,7 +33,7 @@ class BaseSource:
 
         self.sites = []
 
-        self.can_lang_filter = True
+        self.can_lang_filter = False
         self.can_url_black_list = True
         self.url_black_list = []
 

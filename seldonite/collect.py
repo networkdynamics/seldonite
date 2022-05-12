@@ -27,8 +27,8 @@ class Collector:
         self._get_distinct_articles = False
         self._get_sample = False
         self._filter_countries = False
+        self._filter_languages = False
         self._apply_udf = False
-        self.sites=[]
 
     def in_date_range(self, start_date, end_date):
         '''
@@ -67,8 +67,14 @@ class Collector:
         self._url_only_val = set
         return self
 
-    def in_language(self, lang='eng'):
-        self._source.set_language(lang)
+    def in_language(self, lang='en'):
+        '''
+        Filter by languages, language option in ISO 639-1
+        '''
+        if self._source.can_lang_filter:
+            self._source.set_language(lang)
+        self._filter_languages = True
+        self._in_language = lang
         return self
 
     def exclude_in_url(self, url_wildcards):
@@ -121,7 +127,7 @@ class Collector:
 
         if self._filter_countries:
             df = df.withColumn('all_text', psql.functions.concat(df['title'], psql.functions.lit('. '), df['text']))
-            udfCountry = sfuncs.udf(utils.get_countries, psql.types.ArrayType(psql.types.StringType(), True))
+            udfCountry = sfuncs.udf(filters.get_countries, psql.types.ArrayType(psql.types.StringType(), True))
             df = df.withColumn('countries', udfCountry(df.all_text))
             if self._ignore_countries:
                 for country in self._ignore_countries:
@@ -129,10 +135,18 @@ class Collector:
             if self._min_num_countries > 0:
                 df = df.where(sfuncs.size(sfuncs.col('countries')) >= self._min_num_countries)
             if self._mentions_countries:
-                for country in self._mentions_countries:
-                    df = df.where(sfuncs.array_contains('countries', country))
+                df = df.withColumn('country_mentioned', sfuncs.array_intersect('countries', sfuncs.array([sfuncs.lit(country) for country in self._mentions_countries])))
+                df = df.where(sfuncs.size('country_mentioned') > 0)
+                df = df.drop('country_mentioned')
             
             df = df.drop('all_text')
+
+        if self._filter_languages:
+            df = df.withColumn('all_text', psql.functions.concat(df['title'], psql.functions.lit('. '), df['text']))
+            udfLanguage = sfuncs.udf(filters.get_language, psql.types.StringType())
+            df = df.withColumn('language', udfLanguage(df.all_text))
+            df = df.where(sfuncs.col('language') == self._in_language)
+            df = df.drop('language', 'all_text')
 
         if self._political_filter:
 

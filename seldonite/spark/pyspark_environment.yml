@@ -24,3 +24,4 @@ dependencies:
     - bigdl-orca-spark3
     - bigdl-dllib-spark3
     - flashgeotext
+    - langdetect
