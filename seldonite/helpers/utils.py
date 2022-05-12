@@ -7,7 +7,6 @@ import zipfile
 
 import botocore
 import boto3
-from flashgeotext.geotext import GeoText
 import nltk
 import pyspark.sql as psql
 import requests
