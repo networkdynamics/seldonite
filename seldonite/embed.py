@@ -125,8 +125,10 @@ class Embed(base.BaseStage):
             'day_of_week': [f"wd_{day}" for day in range(1, 8)]
         }
 
-        article_df = accumulate_embeddings(article_df, embeddings_df, feature_cols, len(embed_col_names), feature_vals)
+        embeddings_df = accumulate_embeddings(article_df, embeddings_df, feature_cols, len(embed_col_names), feature_vals)
 
+        article_df = article_df.select('id', 'title', 'text', 'publish_date', 'url')
+        article_df = article_df.join(embeddings_df, 'id')
         article_df = article_df.select('title', 'text', 'publish_date', 'url', 'embedding')
         return article_df
 

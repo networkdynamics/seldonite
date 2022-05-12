@@ -134,6 +134,9 @@ class Collector:
                 df = df.withColumn('all_text', psql.functions.concat(df['title'], psql.functions.lit('. '), df['text']))
                 udfCountry = sfuncs.udf(utils.get_countries, psql.types.ArrayType(psql.types.StringType(), True))
                 df = df.withColumn('countries', udfCountry(df.all_text))
+            else:
+                if [dtype for name, dtype in df.dtypes if name == 'countries'][0] == 'string':
+                    df = df.withColumn('countries', sfuncs.from_json(sfuncs.col('countries'), 'array<string>'))
             if self._ignore_countries:
                 for country in self._ignore_countries:
                     df = df.withColumn('countries', sfuncs.array_remove('countries', country))
