@@ -15,20 +15,20 @@ class NLP(base.BaseStage):
     def __init__(self, input):
         super().__init__(input)
 
-        self.do_tfidf = False
-        self.do_get_entities = False
+        self._do_tfidf = False
+        self._do_get_entities = False
 
     def top_tfidf(self, top_num, save_path=None, load_path=None):
-        self.do_tfidf = True
-        self.tfidf_top_num = top_num
-        self.tfidf_save_path = save_path
-        self.tfidf_load_path = load_path
+        self._do_tfidf = True
+        self._tfidf_top_num = top_num
+        self._tfidf_save_path = save_path
+        self._tfidf_load_path = load_path
         return self
 
     def get_entities(self, blacklist_entities=[], max_string_search=None):
-        self.do_get_entities = True
-        self.blacklist_entities = blacklist_entities
-        self.entity_max_string_search = max_string_search
+        self._do_get_entities = True
+        self._blacklist_entities = blacklist_entities
+        self._entity_max_string_search = max_string_search
         return self
 
     def _get_entities(self, df, spark_manager):
@@ -36,8 +36,8 @@ class NLP(base.BaseStage):
         df = df.withColumnRenamed('text', 'article_text')
         df = df.withColumn('text', psql.functions.concat(df['title'], psql.functions.lit('. '), df['article_text']))
 
-        if self.entity_max_string_search:
-            df = df.withColumn('text', sfuncs.substring(sfuncs.col('text'), 1, self.entity_max_string_search))
+        if self._entity_max_string_search:
+            df = df.withColumn('text', sfuncs.substring(sfuncs.col('text'), 1, self._entity_max_string_search))
 
         document_assembler = sparknlp.DocumentAssembler() \
             .setInputCol('text') \
@@ -109,7 +109,7 @@ class NLP(base.BaseStage):
         entity_df = entity_df.drop('lemma')
 
         # drop blacklisted entities
-        for blacklist_entity in self.blacklist_entities:
+        for blacklist_entity in self._blacklist_entities:
             entity_df = entity_df.where(~sfuncs.col('entity').rlike(blacklist_entity))
 
         # only keep unique entities extracted from articles, drop entities with later positions in text
@@ -221,8 +221,8 @@ class NLP(base.BaseStage):
 
         idf = sparkml.feature.IDF()
         # perform save / load operations if required
-        if self.tfidf_load_path:
-            idf_model = sparkml.feature.IDFModel.load(self.tfidf_load_path)
+        if self._tfidf_load_path:
+            idf_model = sparkml.feature.IDFModel.load(self._tfidf_load_path)
         else:
             count_feat_col = "all_raw_features"
             cv_model.setInputCol(all_tokens_col)
@@ -235,8 +235,8 @@ class NLP(base.BaseStage):
             idf_model = idf.fit(df)
             df = df.drop(count_feat_col)
 
-            if self.tfidf_save_path:
-                idf_model.write().overwrite().save(self.tfidf_save_path)
+            if self._tfidf_save_path:
+                idf_model.write().overwrite().save(self._tfidf_save_path)
 
         df = df.drop(all_tokens_col)
 
@@ -275,7 +275,7 @@ class NLP(base.BaseStage):
             # get top n words for each document(label) filtering based on its rank and join both DFs and collect & sort to get the words along with its value
             w = psql.Window.partitionBy('id').orderBy(sfuncs.desc('value'))
             value_df = value_df.withColumn('rank',sfuncs.row_number().over(w)) \
-                                .where(sfuncs.col('rank') <= self.tfidf_top_num)
+                                .where(sfuncs.col('rank') <= self._tfidf_top_num)
             top_word_df = value_df.join(vocab_df, 'word_idx') \
                                     .groupby('id') \
                                     .agg(sfuncs.sort_array(sfuncs.collect_list(sfuncs.struct(sfuncs.col('value'),sfuncs.col('word'))),asc=False).name(f"{text_col}_top_n"))
@@ -292,9 +292,9 @@ class NLP(base.BaseStage):
     def _process(self, spark_manager):
         df = self.input._process(spark_manager)
         
-        if self.do_tfidf:
+        if self._do_tfidf:
             df = self._tfidf(df, spark_manager)
-        if self.do_get_entities:
+        if self._do_get_entities:
             df = self._get_entities(df, spark_manager)
 
         return df

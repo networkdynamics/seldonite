@@ -49,10 +49,11 @@ class Collector:
 
         return self
 
-    def only_political_articles(self, threshold=0.5):
+    def only_political_articles(self, threshold=0.5, output=False):
         filters.political.ensure_zip_exists()
         self._political_filter = True
         self._political_filter_threshold = threshold
+        self._political_filter_output = output
         return self
 
     def on_sites(self, sites):
@@ -90,11 +91,12 @@ class Collector:
         self._num_sample_articles = num_articles
         return self
 
-    def mentions_countries(self, countries=[], min_num_countries=0, ignore_countries=[]):
+    def mentions_countries(self, countries=[], min_num_countries=0, ignore_countries=[], output=False):
         self._mentions_countries = countries
         self._min_num_countries = min_num_countries
         self._ignore_countries = ignore_countries
         self._filter_countries = True
+        self._output_countries = output
         return self
 
     def apply_udf(self, udf, column):
@@ -103,8 +105,10 @@ class Collector:
         self._apply_udf_col = column
 
     def _set_spark_options(self, spark_builder: spark_tools.SparkBuilder):
+        if self._keywords:
+            spark_builder.use_spark_nlp()
+
         if self._political_filter:
-            #spark_builder.use_bigdl()
 
             this_dir_path = os.path.dirname(os.path.abspath(__file__))
             political_classifier_path = os.path.join(this_dir_path, 'filters', 'pon_classifier.zip')
@@ -125,10 +129,20 @@ class Collector:
         if self._get_distinct_articles:
             df = df.drop_duplicates(['url'])
 
+        if self._keywords:
+            df = utils.tokenize(df)
+            df = df.withColumn('keyword_exists', sfuncs.array_intersect(sfuncs.col('tokens'), sfuncs.array([sfuncs.lit(keyword) for keyword in self._keywords])))
+            df = df.where(sfuncs.size('keyword_exists') > 0)
+            df = df.drop('tokens', 'all_text')
+
         if self._filter_countries:
-            df = df.withColumn('all_text', psql.functions.concat(df['title'], psql.functions.lit('. '), df['text']))
-            udfCountry = sfuncs.udf(filters.get_countries, psql.types.ArrayType(psql.types.StringType(), True))
-            df = df.withColumn('countries', udfCountry(df.all_text))
+            if 'countries' not in df.columns:
+                df = df.withColumn('all_text', psql.functions.concat(df['title'], psql.functions.lit('. '), df['text']))
+                udfCountry = sfuncs.udf(utils.get_countries, psql.types.ArrayType(psql.types.StringType(), True))
+                df = df.withColumn('countries', udfCountry(df.all_text))
+            else:
+                if [dtype for name, dtype in df.dtypes if name == 'countries'][0] == 'string':
+                    df = df.withColumn('countries', sfuncs.from_json(sfuncs.col('countries'), 'array<string>'))
             if self._ignore_countries:
                 for country in self._ignore_countries:
                     df = df.withColumn('countries', sfuncs.array_remove('countries', country))
@@ -140,6 +154,8 @@ class Collector:
                 df = df.drop('country_mentioned')
             
             df = df.drop('all_text')
+            if not self._output_countries:
+                df = df.drop('countries')
 
         if self._filter_languages:
             df = df.withColumn('all_text', psql.functions.concat(df['title'], psql.functions.lit('. '), df['text']))
@@ -185,6 +201,9 @@ class Collector:
 
             # filter where prediction is higher than threshold
             df = df.where(f"{pred_col} > {self._political_filter_threshold}")
+
+            if not self._political_filter_output:
+                df = df.drop('political_pred')
 
         if self._get_sample:
             num_rows = df.count()

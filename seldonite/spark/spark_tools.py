@@ -7,9 +7,10 @@ import pyspark.sql as psql
 
 
 class SparkBuilder():
-    def __init__(self, master, name='seldonite_app', archives=[], executor_cores=16, executor_memory='128g', driver_cores=2, driver_memory='128g', num_executors=1, python_executable='python', spark_conf={}):
+    def __init__(self, master, name='seldonite_app', archives=[], executor_cores=16, executor_memory='128g', driver_cores=2, driver_memory='128g', num_executors=1, python_executable='python', keep_alive=False, spark_conf={}):
 
         self.use_bigdl_flag = False
+        self.keep_alive = keep_alive
         # address of spark master node
         self.spark_master_url = master
         self.archives = archives
@@ -93,7 +94,8 @@ class SparkBuilder():
         try:
             yield spark_manager
         finally:
-            spark_manager.end()
+            if not self.keep_alive:
+                spark_manager.stop()
 
 class SparkManager():
     def __init__(self, spark_master_url, use_bigdl, conf):
@@ -146,7 +148,7 @@ class SparkManager():
     def get_num_cpus(self):
         return int(self.conf['spark.executor.instances']) * int(self.conf['spark.executor.cores'])
 
-    def end(self):
+    def stop(self):
         if self.use_bigdl:
             stop_orca_context()
             #pass

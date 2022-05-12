@@ -6,12 +6,22 @@ from sparknlp.pretrained import PretrainedPipeline
 
 from seldonite import base, graphs
 
-def accumulate_embeddings(df, embeddings_df, feature_cols, len_embed, token_col='token', embedding_col='token_embedding'):
-    df = df.withColumn('embedding', sfuncs.array([sfuncs.lit(0) for _ in range(len_embed)]))
+def accumulate_embeddings(df, embeddings_df, feature_cols, len_embed, feature_vals, token_col='token', embedding_col='token_embedding'):
+    
+    all_embeds_df = None
     for feature_col in feature_cols:
-        df = df.join(embeddings_df, sfuncs.col(feature_col) == sfuncs.col(token_col))
-        df = df.withColumn('embedding', sfuncs.zip_with('embedding', embedding_col, lambda x, y: x + y))
-        df = df.drop(token_col, embedding_col)
+        if feature_col in feature_vals:
+            broadcast_embeds = sfuncs.broadcast(embeddings_df.where(sfuncs.col(token_col).isin(feature_vals[feature_col])))
+        else:
+            broadcast_embeds = sfuncs.broadcast(embeddings_df)
+        feature_df = df.select('id', feature_col).join(broadcast_embeds, sfuncs.col(feature_col) == sfuncs.col(token_col))
+        feature_df = feature_df.drop(token_col)
+        if all_embeds_df:
+            all_embeds_df = all_embeds_df.union(feature_df)
+        else:
+            all_embeds_df = feature_df
+
+    df = all_embeds_df.groupBy('id').agg(sfuncs.array(*[sfuncs.sum(sfuncs.col(embedding_col)[i]) for i in range(len_embed)]).alias('embedding'))
 
     return df
 
@@ -24,6 +34,7 @@ class Embed(base.BaseStage):
         self._do_news2vec_embed = True
         self._news2vec_embedding_path = embedding_path
         return self
+
 
     def _news2vec_embed(self, df, spark_manager):
         
@@ -106,11 +117,21 @@ class Embed(base.BaseStage):
 
         # creating article embedding
         feature_cols = [str(num) for num in range(1, TOP_NUM_NODE + 1)] + ['num_words_ord', 'sentiment', 'month', 'day_of_week', 'day_of_month']
-        
-        article_df = accumulate_embeddings(article_df, embeddings_df, feature_cols, len(embed_col_names))
+        feature_vals = {
+            'num_words_ord': ['wc200', 'wc500', 'wc1000', 'wc2000', 'wc3000', 'wc5000', 'wcmax'],
+            'sentiment': ['neutral', 'negative', 'positive'],
+            'month': [f"m_{month}" for month in range(1, 13)],
+            'day_of_month': [f"d_{day}" for day in range(1, 32)],
+            'day_of_week': [f"wd_{day}" for day in range(1, 8)]
+        }
 
+        embeddings_df = accumulate_embeddings(article_df, embeddings_df, feature_cols, len(embed_col_names), feature_vals)
+
+        article_df = article_df.select('id', 'title', 'text', 'publish_date', 'url')
+        article_df = article_df.join(embeddings_df, 'id')
         article_df = article_df.select('title', 'text', 'publish_date', 'url', 'embedding')
         return article_df
+
 
 
     def _process(self, spark_manager):
