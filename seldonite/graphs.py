@@ -131,6 +131,7 @@ class Graph(base.BaseStage):
         article_nodes_df = article_nodes_df.withColumn('sentiment', sfuncs.when(sfuncs.col('sentiment_output') == 'positive', 'positive_1') \
                                                                           .when(sfuncs.col('sentiment_output') == 'neutral', 'neutral_1') \
                                                                           .when(sfuncs.col('sentiment_output') == 'negative', 'negative_1'))
+        article_nodes_df = article_nodes_df.drop('sentiment_output')
 
         # get month 
         article_nodes_df = article_nodes_df.withColumn('month', sfuncs.concat(sfuncs.lit('m_'), sfuncs.month('publish_date')))

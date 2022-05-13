@@ -30,7 +30,7 @@ class Embed(base.BaseStage):
         super().__init__(input)
         self._do_news2vec_embed = False
 
-    def news2vec_embed(self, embedding_path, export_features=False):
+    def news2vec_embed(self, embedding_path=None, export_features=False):
         self._do_news2vec_embed = True
         self._news2vec_embedding_path = embedding_path
         self._export_features = export_features
@@ -99,6 +99,7 @@ class Embed(base.BaseStage):
         article_nodes_df = article_nodes_df.withColumn('sentiment', sfuncs.when(sfuncs.col('sentiment_output') == 'positive', 'positive_1') \
                                                                           .when(sfuncs.col('sentiment_output') == 'neutral', 'neutral_1') \
                                                                           .when(sfuncs.col('sentiment_output') == 'negative', 'negative_1'))
+        article_nodes_df = article_nodes_df.drop('sentiment_output')
 
         # get month 
         article_nodes_df = article_nodes_df.withColumn('month', sfuncs.concat(sfuncs.lit('m_'), sfuncs.month('publish_date')))
@@ -107,33 +108,38 @@ class Embed(base.BaseStage):
         # get of week
         article_df = article_nodes_df.withColumn('day_of_week', sfuncs.concat(sfuncs.lit('wd_'), sfuncs.dayofweek('publish_date')))
 
-        # load embeddings from file
-        spark = spark_manager.get_spark_session()
-        embeddings_df = spark.read.csv(self._news2vec_embedding_path, header=True)
-
-        # sort out columns
-        embeddings_df = embeddings_df.withColumnRenamed('_c0', 'token')
-
-        embed_col_names = embeddings_df.columns
-        embed_col_names.remove('token')
-        embeddings_df = embeddings_df.withColumn('token_embedding', sfuncs.array([sfuncs.col(col_name) for col_name in embed_col_names]))
-        embeddings_df = embeddings_df.drop(*embed_col_names)
-
-        # creating article embedding
         feature_cols = [str(num) for num in range(1, TOP_NUM_NODE + 1)] + ['num_words_ord', 'sentiment', 'month', 'day_of_week', 'day_of_month']
-        feature_vals = {
-            'num_words_ord': ['wc200', 'wc500', 'wc1000', 'wc2000', 'wc3000', 'wc5000', 'wcmax'],
-            'sentiment': ['neutral', 'negative', 'positive'],
-            'month': [f"m_{month}" for month in range(1, 13)],
-            'day_of_month': [f"d_{day}" for day in range(1, 32)],
-            'day_of_week': [f"wd_{day}" for day in range(1, 8)]
-        }
+        
+        if self._export_features:
+            article_df = article_df.select(['title', 'text', 'publish_date', 'url'] + feature_cols)
+        else:
+            # load embeddings from file
+            spark = spark_manager.get_spark_session()
+            embeddings_df = spark.read.csv(self._news2vec_embedding_path, header=True)
 
-        embeddings_df = accumulate_embeddings(article_df, embeddings_df, feature_cols, len(embed_col_names), feature_vals)
+            # sort out columns
+            embeddings_df = embeddings_df.withColumnRenamed('_c0', 'token')
 
-        article_df = article_df.select('id', 'title', 'text', 'publish_date', 'url')
-        article_df = article_df.join(embeddings_df, 'id')
-        article_df = article_df.select('title', 'text', 'publish_date', 'url', 'embedding')
+            embed_col_names = embeddings_df.columns
+            embed_col_names.remove('token')
+            embeddings_df = embeddings_df.withColumn('token_embedding', sfuncs.array([sfuncs.col(col_name) for col_name in embed_col_names]))
+            embeddings_df = embeddings_df.drop(*embed_col_names)
+
+            # creating article embedding
+            feature_vals = {
+                'num_words_ord': ['wc200', 'wc500', 'wc1000', 'wc2000', 'wc3000', 'wc5000', 'wcmax'],
+                'sentiment': ['neutral_1', 'negative_1', 'positive_1'],
+                'month': [f"m_{month}" for month in range(1, 13)],
+                'day_of_month': [f"d_{day}" for day in range(1, 32)],
+                'day_of_week': [f"wd_{day}" for day in range(1, 8)]
+            }
+
+            embeddings_df = accumulate_embeddings(article_df, embeddings_df, feature_cols, len(embed_col_names), feature_vals)
+
+            article_df = article_df.select('id', 'title', 'text', 'publish_date', 'url')
+            article_df = article_df.join(embeddings_df, 'id')
+            article_df = article_df.select('title', 'text', 'publish_date', 'url', 'embedding')
+        
         return article_df
 
 

@@ -159,6 +159,8 @@ class Collector:
 
         if self._filter_languages:
             df = df.withColumn('all_text', psql.functions.concat(df['title'], psql.functions.lit('. '), df['text']))
+            df = df.where(sfuncs.col('all_text').isNotNull())
+
             udfLanguage = sfuncs.udf(filters.get_language, psql.types.StringType())
             df = df.withColumn('language', udfLanguage(df.all_text))
             df = df.where(sfuncs.col('language') == self._in_language)
