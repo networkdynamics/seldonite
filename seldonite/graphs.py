@@ -121,12 +121,16 @@ class Graph(base.BaseStage):
                                                                               .when((sfuncs.col('num_words') > 2000) & (sfuncs.col('num_words') <= 3000), 'wc3000') \
                                                                               .when((sfuncs.col('num_words') > 3000) & (sfuncs.col('num_words') <= 5000), 'wc5000') \
                                                                               .when(sfuncs.col('num_words') > 5000, 'wcmax'))
+        article_nodes_df = article_nodes_df.drop('num_words')
 
         # get article sentiment
         sentiment_pipeline = PretrainedPipeline("classifierdl_bertwiki_finance_sentiment_pipeline", lang = "en")
         article_nodes_df = sentiment_pipeline.annotate(article_nodes_df, 'text') \
-                                             .select('*', sfuncs.col('class.result').getItem(0).alias('sentiment')) \
+                                             .select('*', sfuncs.col('class.result').getItem(0).alias('sentiment_output')) \
                                              .drop('document', 'sentence_embeddings', 'class')
+        article_nodes_df = article_nodes_df.withColumn('sentiment', sfuncs.when(sfuncs.col('sentiment_output') == 'positive', 'positive_1') \
+                                                                          .when(sfuncs.col('sentiment_output') == 'neutral', 'neutral_1') \
+                                                                          .when(sfuncs.col('sentiment_output') == 'negative', 'negative_1'))
 
         # get month 
         article_nodes_df = article_nodes_df.withColumn('month', sfuncs.concat(sfuncs.lit('m_'), sfuncs.month('publish_date')))

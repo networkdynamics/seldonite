@@ -207,7 +207,9 @@ class Collector:
 
         if self._get_sample:
             num_rows = df.count()
-            df = df.sample(fraction=(self._num_sample_articles + 1) / num_rows).limit(self._num_sample_articles)
+            frac = (self._num_sample_articles + 1) / num_rows
+            if frac < 1:
+                df = df.sample(fraction=frac).limit(self._num_sample_articles)
 
         if self._max_articles:
             return df.limit(self._max_articles)

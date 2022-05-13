@@ -30,9 +30,10 @@ class Embed(base.BaseStage):
         super().__init__(input)
         self._do_news2vec_embed = False
 
-    def news2vec_embed(self, embedding_path):
+    def news2vec_embed(self, embedding_path, export_features=False):
         self._do_news2vec_embed = True
         self._news2vec_embedding_path = embedding_path
+        self._export_features = export_features
         return self
 
 
@@ -93,8 +94,11 @@ class Embed(base.BaseStage):
         # get article sentiment
         sentiment_pipeline = PretrainedPipeline("classifierdl_bertwiki_finance_sentiment_pipeline", lang = "en")
         article_nodes_df = sentiment_pipeline.annotate(article_nodes_df, 'text') \
-                                             .select('*', sfuncs.col('class.result').getItem(0).alias('sentiment')) \
+                                             .select('*', sfuncs.col('class.result').getItem(0).alias('sentiment_output')) \
                                              .drop('document', 'sentence_embeddings', 'class')
+        article_nodes_df = article_nodes_df.withColumn('sentiment', sfuncs.when(sfuncs.col('sentiment_output') == 'positive', 'positive_1') \
+                                                                          .when(sfuncs.col('sentiment_output') == 'neutral', 'neutral_1') \
+                                                                          .when(sfuncs.col('sentiment_output') == 'negative', 'negative_1'))
 
         # get month 
         article_nodes_df = article_nodes_df.withColumn('month', sfuncs.concat(sfuncs.lit('m_'), sfuncs.month('publish_date')))
