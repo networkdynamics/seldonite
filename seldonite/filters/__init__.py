@@ -24,5 +24,8 @@ def get_countries(text):
     return list(places['countries'].keys())
 
 def get_language(text):
-    return langdetect.detect(text)
+    try:
+        return langdetect.detect(text)
+    except Exception as err:
+        raise Exception(f"Recieved exception: {err}, for input: {text}")
 
