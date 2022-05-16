@@ -55,6 +55,53 @@ class Graph(base.BaseStage):
         self.graph_option = 'entity_dag'
         return self
 
+    def build_tfidf_graph(self):
+        self.graph_option = 'tfidf'
+        return self
+
+    def _build_tfidf_graph(self, df: psql.DataFrame, spark_manager):
+
+        Z1 = 1
+        Z2 = 2
+        TOP_NUM_NODE = 20
+
+        df.cache()
+
+        nodes_df = get_nodes_df(df)
+        df.unpersist()
+
+        # increase number of partitions because of new columns
+        num_partitions = nodes_df.rdd.getNumPartitions()
+        nodes_df = nodes_df.repartition(num_partitions * 8)
+
+        nodes_df.cache()
+
+        # explode tfidf again to get edges
+        article_nodes_df = nodes_df.where(sfuncs.col('text_top_n').isNotNull() & sfuncs.col('title_top_n').isNotNull())
+
+        edges_df = get_edges_df(article_nodes_df)
+        edges_df.cache()
+
+        # divide each weight by scalar
+        edges_df = edges_df.select('id1', 'word', (sfuncs.col('title_value') / Z1).alias('title_value'), (sfuncs.col('text_value') / Z2).alias('text_value'))
+
+        # add up values
+        word_edges_df = edges_df.select('id1', 'word', (sfuncs.coalesce('title_value', sfuncs.lit(0)) + sfuncs.coalesce('text_value', sfuncs.lit(0))).alias('weight'))
+
+        # map word to node id
+        word_nodes_df = nodes_df.where(sfuncs.col('word').isNotNull()) \
+                                .select('id', 'word')
+        edges_df = word_edges_df.join(word_nodes_df, on='word') \
+                                .select('id1', sfuncs.col('id').alias('id2'), 'weight')
+        
+        # drop edges with weight 0
+        edges_df = edges_df.where(sfuncs.col('weight') > 0)
+
+        article_nodes_df = article_nodes_df.select('id', 'title', 'text', 'publish_date', 'url')
+
+        return article_nodes_df, word_nodes_df, edges_df
+
+
     def _build_news2vec_graph(self, df: psql.DataFrame, spark_manager):
 
         Z1 = 1
@@ -224,6 +271,8 @@ class Graph(base.BaseStage):
             graph = self._build_news2vec_graph(df, spark_manager)
         elif self.graph_option == 'entity_dag':
             graph = self._build_entity_dag(df, spark_manager)
+        elif self.graph_option == 'tfidf':
+            graph = self._build_tfidf_graph(df, spark_manager)
         else:
             raise ValueError('Must have chosen graph option with this pipeline step')
 

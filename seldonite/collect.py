@@ -209,6 +209,9 @@ class Collector:
 
         if self._get_sample:
             num_rows = df.count()
+            if num_rows == 0:
+                raise ValueError('No articles found')
+
             frac = (self._num_sample_articles + 1) / num_rows
             if frac < 1:
                 df = df.sample(fraction=frac).limit(self._num_sample_articles)
