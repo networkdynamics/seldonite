@@ -3,7 +3,7 @@
 
 Define a news source, set your search method, and collect news articles or create news graphs.
 
-Usage (WIP):
+Usage:
 ```python
 import os
 
