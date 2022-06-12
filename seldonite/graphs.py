@@ -55,6 +55,53 @@ class Graph(base.BaseStage):
         self.graph_option = 'entity_dag'
         return self
 
+    def build_tfidf_graph(self):
+        self.graph_option = 'tfidf'
+        return self
+
+    def _build_tfidf_graph(self, df: psql.DataFrame, spark_manager):
+
+        Z1 = 1
+        Z2 = 2
+        TOP_NUM_NODE = 20
+
+        df.cache()
+
+        nodes_df = get_nodes_df(df)
+        df.unpersist()
+
+        # increase number of partitions because of new columns
+        num_partitions = nodes_df.rdd.getNumPartitions()
+        nodes_df = nodes_df.repartition(num_partitions * 8)
+
+        nodes_df.cache()
+
+        # explode tfidf again to get edges
+        article_nodes_df = nodes_df.where(sfuncs.col('text_top_n').isNotNull() & sfuncs.col('title_top_n').isNotNull())
+
+        edges_df = get_edges_df(article_nodes_df)
+        edges_df.cache()
+
+        # divide each weight by scalar
+        edges_df = edges_df.select('id1', 'word', (sfuncs.col('title_value') / Z1).alias('title_value'), (sfuncs.col('text_value') / Z2).alias('text_value'))
+
+        # add up values
+        word_edges_df = edges_df.select('id1', 'word', (sfuncs.coalesce('title_value', sfuncs.lit(0)) + sfuncs.coalesce('text_value', sfuncs.lit(0))).alias('weight'))
+
+        # map word to node id
+        word_nodes_df = nodes_df.where(sfuncs.col('word').isNotNull()) \
+                                .select('id', 'word')
+        edges_df = word_edges_df.join(word_nodes_df, on='word') \
+                                .select('id1', sfuncs.col('id').alias('id2'), 'weight')
+        
+        # drop edges with weight 0
+        edges_df = edges_df.where(sfuncs.col('weight') > 0)
+
+        article_nodes_df = article_nodes_df.select('id', 'title', 'text', 'publish_date', 'url')
+
+        return article_nodes_df, word_nodes_df, edges_df
+
+
     def _build_news2vec_graph(self, df: psql.DataFrame, spark_manager):
 
         Z1 = 1
@@ -121,12 +168,17 @@ class Graph(base.BaseStage):
                                                                               .when((sfuncs.col('num_words') > 2000) & (sfuncs.col('num_words') <= 3000), 'wc3000') \
                                                                               .when((sfuncs.col('num_words') > 3000) & (sfuncs.col('num_words') <= 5000), 'wc5000') \
                                                                               .when(sfuncs.col('num_words') > 5000, 'wcmax'))
+        article_nodes_df = article_nodes_df.drop('num_words')
 
         # get article sentiment
         sentiment_pipeline = PretrainedPipeline("classifierdl_bertwiki_finance_sentiment_pipeline", lang = "en")
         article_nodes_df = sentiment_pipeline.annotate(article_nodes_df, 'text') \
-                                             .select('*', sfuncs.col('class.result').getItem(0).alias('sentiment')) \
+                                             .select('*', sfuncs.col('class.result').getItem(0).alias('sentiment_output')) \
                                              .drop('document', 'sentence_embeddings', 'class')
+        article_nodes_df = article_nodes_df.withColumn('sentiment', sfuncs.when(sfuncs.col('sentiment_output') == 'positive', 'positive_1') \
+                                                                          .when(sfuncs.col('sentiment_output') == 'neutral', 'neutral_1') \
+                                                                          .when(sfuncs.col('sentiment_output') == 'negative', 'negative_1'))
+        article_nodes_df = article_nodes_df.drop('sentiment_output')
 
         # get month 
         article_nodes_df = article_nodes_df.withColumn('month', sfuncs.concat(sfuncs.lit('m_'), sfuncs.month('publish_date')))
@@ -219,6 +271,8 @@ class Graph(base.BaseStage):
             graph = self._build_news2vec_graph(df, spark_manager)
         elif self.graph_option == 'entity_dag':
             graph = self._build_entity_dag(df, spark_manager)
+        elif self.graph_option == 'tfidf':
+            graph = self._build_tfidf_graph(df, spark_manager)
         else:
             raise ValueError('Must have chosen graph option with this pipeline step')
 

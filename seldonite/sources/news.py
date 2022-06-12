@@ -33,7 +33,7 @@ class BaseSource:
 
         self.sites = []
 
-        self.can_lang_filter = True
+        self.can_lang_filter = False
         self.can_url_black_list = True
         self.url_black_list = []
 
@@ -88,7 +88,7 @@ class BaseSource:
 
                 df.createOrReplaceTempView("temp")
                 clause = " OR ".join([f"url LIKE '%{site}%'" for site in self.sites])
-                df = spark.sql(f"SELECT text, title, url, publish_date FROM temp WHERE {clause}")
+                df = spark.sql(f"SELECT * FROM temp WHERE {clause}")
 
         if self.url_black_list:
             for blacklist_pattern in self.url_black_list:
@@ -105,7 +105,10 @@ class CSV(BaseSource):
     def fetch(self, spark_manager, max_articles=None, url_only=False):
         spark = spark_manager.get_spark_session()
         df = spark.read.csv(self.csv_path, inferSchema=True, header=True, multiLine=True, escape='"')
-        df = df.select('title', 'text', 'publish_date', 'url')
+
+        if '_c0' in df.columns:
+            df = df.drop('_c0')
+
         df = df.repartition(spark_manager.get_num_cpus() * 8)
         return self._apply_default_filters(df, spark_manager, url_only, max_articles)
 

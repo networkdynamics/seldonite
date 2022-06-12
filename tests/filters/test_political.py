@@ -20,7 +20,7 @@ def test_preprocess():
     zip_path = os. path.join(this_dir_path, '..', '..', 'seldonite', 'filters', 'pon_classifier.zip')
     utils.unzip(zip_path, fixture_path)
 
-    tokens = utils.map_col_with_index(rows, 'url', 'all_text', 'tokens', filters.political.preprocess, tokenizer_path=fixture_path)
+    tokens = filters.political.preprocess_text_partition(rows, tokenizer_path=fixture_path)
     tokens = list(tokens)
 
     # clean up files

@@ -16,7 +16,6 @@ dependencies:
   - spacy
   - nltk
   - networkx
-  - transformers
   - pytorch==1.9.0
   - lemminflect>=0.2.1
   - gensim
@@ -35,4 +34,5 @@ dependencies:
     - pyzmq
     - tensorflow>=2.1.0
     - bigdl-spark3
-    - geograpy3
+    - flashgeotext
+    - langdetect

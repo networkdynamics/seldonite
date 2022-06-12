@@ -1,6 +1,7 @@
 name: seldonite_spark
 channels:
   - conda-forge
+  - pytorch
 dependencies:
   - python=3.7
   - conda-build
@@ -8,8 +9,7 @@ dependencies:
   - newspaper3k
   - boto3
   - pyspark==3.1.2
-  - transformers>=4.16
-  - pandas==1.0.3
+  - pandas==1.2.5
   - numpy==1.21.4
   - six==1.16.0
   - py4j==0.10.9
@@ -21,5 +21,7 @@ dependencies:
     - ray[default]
     - pyzmq
     - tensorflow>=2.1.0
-    - https://downloads.sourceforge.net/project/analytics-zoo/orca-py-spark3/bigdl_orca_spark3-0.14.0b20211215-py3-none-manylinux1_x86_64.whl
-    - https://downloads.sourceforge.net/project/analytics-zoo/dllib-py-spark3/bigdl_dllib_spark3-0.14.0b20211215-py3-none-manylinux1_x86_64.whl
+    - bigdl-orca-spark3
+    - bigdl-dllib-spark3
+    - flashgeotext
+    - langdetect
