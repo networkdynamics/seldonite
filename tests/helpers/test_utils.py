@@ -67,7 +67,8 @@ def test_construct_db_uri():
     assert uri == desired_uri
 
 @pytest.mark.parametrize("url",
-    [("https://www.reuters.com/world/europe/two-more-ships-depart-ukraine-turkeys-defence-ministry-2022-08-12/"),
+    [("https://www.reuters.com/article/us-china-kfc-probe-idUSBRE8BK05I20121221"),
+     ("https://www.reuters.com/world/europe/two-more-ships-depart-ukraine-turkeys-defence-ministry-2022-08-12/"),
      ("https://www.reuters.com/markets/commodities/ukraine-says-it-can-export-3-million-tonnes-grain-ports-next-month-2022-08-16/"),
      ("https://www.reuters.com/business/palladium-sheds-nearly-13-worries-over-china-demand-hit-2022-04-25/")])
 def test_link_to_article(url):
