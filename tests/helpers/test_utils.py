@@ -65,3 +65,11 @@ def test_construct_db_uri():
 
     uri = utils.construct_db_uri(connection_str, database, collection)
     assert uri == desired_uri
+
+@pytest.mark.parametrize("url",
+    [("https://www.reuters.com/world/europe/two-more-ships-depart-ukraine-turkeys-defence-ministry-2022-08-12/"),
+     ("https://www.reuters.com/markets/commodities/ukraine-says-it-can-export-3-million-tonnes-grain-ports-next-month-2022-08-16/"),
+     ("https://www.reuters.com/business/palladium-sheds-nearly-13-worries-over-china-demand-hit-2022-04-25/")])
+def test_link_to_article(url):
+    article = utils.link_to_article(url)
+    assert article.meta_data is not None
