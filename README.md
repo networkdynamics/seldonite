@@ -1,25 +1,29 @@
 # Seldonite
-### A News Event Representation Library
+### A News Article Collection and Processing Library
 
-Define a news source, set your search method, and create event representations.
+Define a news source, set your search method, and collect news articles or create news graphs.
 
-Usage (WIP):
+Usage:
 ```python
-from seldonite import source, collect, analyze
+import os
 
-sites = ['cbc.ca', 'bbc.com']
-source = source.CommonCrawl(sites)
+from seldonite import sources, collect, run
+
+aws_access_key = os.environ['AWS_ACCESS_KEY']
+aws_secret_key = os.environ['AWS_SECRET_KEY']
+
+source = sources.news.CommonCrawl(aws_access_key, aws_secret_key)
 
 collector = collect.Collector(source) \
+    .on_sites(['cbc.ca', 'bbc.com']) \
     .by_keywords(['afghanistan', 'withdrawal'])
 
-analysis = analyze.Analyze(collector) \
-    .timeline()
+graph = graphs.Graph(collector) \
+    .build_tfidf_graph()
 
-timeline = runner.Runner(analysis)
+articles_df, words_df, edges_df = run.Runner(graph)
     .to_pandas()
 
-timeline.plot()
 ```
 
 Please see the wiki for more detail on sources and methods

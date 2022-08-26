@@ -3,7 +3,7 @@ import json
 import os
 
 from seldonite.sources import news
-from seldonite import collect
+from seldonite import collect, run
 
 
 def main(args):
@@ -17,9 +17,9 @@ def main(args):
 
     collector = collect.Collector(cc_source) \
                     .by_keywords([args.keyword])
-    articles = collector.fetch()
+    runner = run.Runner(collector)
+    article_df = runner.to_pandas()
 
-    json_articles = json.dumps([article.to_dict() for article in articles], indent=2)
     if args.out:
         out_path = os.path.abspath(args.out)
         out_dir = os.path.dirname(out_path)
@@ -27,10 +27,9 @@ def main(args):
         if not os.path.exists(out_dir):
             os.mkdir(out_dir)
 
-        with open(out_path, 'w') as f:
-            f.write(json_articles)
+        article_df.to_csv(out_path)
     else:
-        print(json_articles)
+        print(article_df)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
