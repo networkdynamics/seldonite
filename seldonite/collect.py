@@ -29,6 +29,7 @@ class Collector:
         self._filter_countries = False
         self._filter_languages = False
         self._apply_udf = False
+        self._from_urls = False
 
     def in_date_range(self, start_date, end_date):
         '''
@@ -104,6 +105,14 @@ class Collector:
         self._udf_to_apply = udf
         self._apply_udf_col = column
 
+    def from_urls(self, urls):
+        if self._source.can_url_search:
+            self._source.set_urls(urls)
+        else:
+            self._urls = urls
+            self._from_urls = True
+        return self
+
     def _set_spark_options(self, spark_builder: spark_tools.SparkBuilder):
         if self._keywords:
             spark_builder.use_spark_nlp()
@@ -128,6 +137,9 @@ class Collector:
 
         if self._get_distinct_articles:
             df = df.drop_duplicates(['url'])
+
+        if self._from_urls:
+            df = df.filter(sfuncs.col("url").isin(self._urls))
 
         if self._keywords:
             df = utils.tokenize(df)

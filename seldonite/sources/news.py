@@ -33,6 +33,7 @@ class BaseSource:
 
         self.sites = []
 
+        self.can_url_search = False
         self.can_lang_filter = False
         self.can_url_black_list = True
         self.url_black_list = []
@@ -66,6 +67,9 @@ class BaseSource:
 
     def set_sites(self, sites):
         self.sites = sites
+
+    def set_urls(self, urls):
+        self.urls = urls
 
     def fetch(self, *args, **kwargs):
         raise NotImplementedError()
@@ -154,6 +158,7 @@ class CommonCrawl(BaseCommonCrawl):
         self.can_lang_filter = True
         self.lang = None
         self.can_url_black_list = True
+        self.can_url_search = True
 
     def set_crawls(self, crawl):
         if crawl == 'latest':
@@ -176,7 +181,8 @@ class CommonCrawl(BaseCommonCrawl):
 
         # create the spark job
         job = CCIndexFetchNewsJob(self.aws_access_key, self.aws_secret_key)
-        job.set_query_options(sites=self.sites, crawls=self.crawls, lang=self.lang, limit=max_articles, url_black_list=self.url_black_list)
+        job.set_query_options(urls=self.urls, sites=self.sites, crawls=self.crawls, lang=self.lang, 
+                              limit=max_articles, url_black_list=self.url_black_list)
         return job.run(spark_manager, url_only=url_only, keywords=self.keywords, 
                        start_date=self.start_date, end_date=self.end_date)
         

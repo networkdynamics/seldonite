@@ -124,7 +124,7 @@ def get_cc_crawls_since(date):
 
     return crawl_ids
 
-def construct_query(sites, limit, crawls=None, lang='eng', url_black_list=[]):
+def construct_query(urls, sites, limit, crawls=None, lang='eng', url_black_list=[]):
     #TODO automatically get most recent crawl
     query = "SELECT url, warc_filename, warc_record_offset, warc_record_length, content_charset FROM ccindex WHERE subset = 'warc'"
 
@@ -143,6 +143,10 @@ def construct_query(sites, limit, crawls=None, lang='eng', url_black_list=[]):
     if sites:
         site_list = ', '.join([f"'{site}'" for site in sites])
         query += f" AND url_host_registered_domain IN ({site_list})"
+
+    if urls:
+        url_list = ', '.join([f"'{url}'" for url in urls])
+        query += f" AND url IN ({url_list})"
 
     # Language filter
     if lang:
