@@ -1,3 +1,5 @@
+import collections
+
 import pyspark.sql as psql
 
 from seldonite import filters
@@ -63,6 +65,13 @@ class FetchNewsJob(CCSparkJob):
         if self.keywords and not filters.contains_keywords(article, self.keywords):
             return None
 
-        return psql.Row(title=article.title, text=article.text, url=url, publish_date=article.publish_date)
+        row_values = collections.OrderedDict()
+        for feature in self.features:
+            if feature == 'url':
+                row_values[feature] = url
+            else:
+                row_values[feature] = getattr(article, feature)
+
+        return psql.Row(**row_values)
 
     

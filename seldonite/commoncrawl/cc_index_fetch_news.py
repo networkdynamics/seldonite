@@ -13,9 +13,9 @@ class CCIndexFetchNewsJob(CCIndexWarcSparkJob, FetchNewsJob):
     records_parsing_failed = None
     records_non_html = None
         
-    def run(self, spark_manager, keywords=[], start_date=None, end_date=None, **kwargs):
+    def run(self, spark_manager, features=['title', 'text', 'url', 'publish_date'], keywords=[], start_date=None, end_date=None, **kwargs):
         self.set_constraints(keywords, start_date, end_date)
-        return super().run(spark_manager, **kwargs)
+        return super().run(spark_manager, features, **kwargs)
 
     def set_query_options(self, urls=[], sites=[], crawls=[], lang=None, limit=None, url_black_list=[]):
 

@@ -50,6 +50,11 @@ class Collector:
 
         return self
 
+    def get_features(self, features=['text', 'title', 'url', 'publish_date']):
+        self._source.set_features(features)
+
+        return self
+
     def only_political_articles(self, threshold=0.5, output=False):
         filters.political.ensure_zip_exists()
         self._political_filter = True

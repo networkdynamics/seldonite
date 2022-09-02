@@ -1,5 +1,5 @@
+import collections
 import datetime
-from email import header
 
 from seldonite.commoncrawl.cc_index_fetch_news import CCIndexFetchNewsJob
 from seldonite.commoncrawl.fetch_news import FetchNewsJob
@@ -32,6 +32,8 @@ class BaseSource:
         self.end_date = None
 
         self.sites = []
+
+        self.features = ['title', 'text', 'url', 'publish_date']
 
         self.can_url_search = False
         self.can_lang_filter = False
@@ -70,6 +72,9 @@ class BaseSource:
 
     def set_urls(self, urls):
         self.urls = urls
+
+    def set_features(self, features):
+        self.features = features
 
     def fetch(self, *args, **kwargs):
         raise NotImplementedError()
@@ -183,7 +188,7 @@ class CommonCrawl(BaseCommonCrawl):
         job = CCIndexFetchNewsJob(self.aws_access_key, self.aws_secret_key)
         job.set_query_options(urls=self.urls, sites=self.sites, crawls=self.crawls, lang=self.lang, 
                               limit=max_articles, url_black_list=self.url_black_list)
-        return job.run(spark_manager, url_only=url_only, keywords=self.keywords, 
+        return job.run(spark_manager, features=self.features, url_only=url_only, keywords=self.keywords, 
                        start_date=self.start_date, end_date=self.end_date)
         
 
@@ -325,13 +330,20 @@ class Google(SearchEngineSource):
             items = results['items']
 
             for item in items:
-                link = item['link']
+                url = item['link']
                 # TODO convert for spark
                 if url_only:
-                    articles.append(psql.Row(url=link))
+                    articles.append(psql.Row(url=url))
                 else:
-                    article = utils.link_to_article(link)
-                    articles.append(psql.Row(text=article.text, title=article.title, url=link, publish_date=article.publish_date))
+                    article = utils.link_to_article(url)
+                    row_values = collections.OrderedDict()
+                    for feature in self.features:
+                        if feature == 'url':
+                            row_values[feature] = url
+                        else:
+                            row_values[feature] = getattr(article, feature)
+
+                    articles.append(psql.Row(**row_values))
 
         spark_session = spark_manager.get_spark_session()
         return spark_session.createDataFrame(articles)

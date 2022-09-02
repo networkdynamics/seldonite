@@ -383,6 +383,7 @@ class CCIndexWarcSparkJob(CCIndexSparkJob):
         return rdd.toDF()
 
 
-    def run(self, spark_manager, url_only):
+    def run(self, spark_manager, features, url_only):
         self.url_only = url_only
+        self.features = features
         return super().run(spark_manager)
