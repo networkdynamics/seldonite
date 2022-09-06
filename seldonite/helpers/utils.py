@@ -130,7 +130,9 @@ def construct_query(urls, sites, limit, crawls=None, lang='eng', url_black_list=
 
     if crawls:
         # 
-        if len(crawls) == 1:
+        if crawls == 'all':
+            pass
+        elif len(crawls) == 1:
             query += f" AND crawl = '{crawls[0]}'"
         else:
             crawl_list = ', '.join([f"'{crawl}'" for crawl in crawls])

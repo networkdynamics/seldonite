@@ -1,4 +1,5 @@
 # custom ignore files
+=*
 *.vscode*
 .devcontainer.json
 data/*

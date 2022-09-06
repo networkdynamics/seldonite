@@ -169,7 +169,7 @@ class CommonCrawl(BaseCommonCrawl):
         if crawl == 'latest':
             self.crawls = [ utils.most_recent_cc_crawl() ]
         elif crawl == 'all':
-            self.crawls = utils.get_all_cc_crawls()
+            self.crawls = 'all'
         else:
             if type(crawl) == str:
                 self.crawls = [ crawl ]
@@ -186,9 +186,9 @@ class CommonCrawl(BaseCommonCrawl):
 
         # create the spark job
         job = CCIndexFetchNewsJob(self.aws_access_key, self.aws_secret_key)
-        job.set_query_options(urls=self.urls, sites=self.sites, crawls=self.crawls, lang=self.lang, 
+        job.set_query_options(sites=self.sites, crawls=self.crawls, lang=self.lang, 
                               limit=max_articles, url_black_list=self.url_black_list)
-        return job.run(spark_manager, features=self.features, url_only=url_only, keywords=self.keywords, 
+        return job.run(spark_manager, features=self.features, urls=self.urls, url_only=url_only, keywords=self.keywords, 
                        start_date=self.start_date, end_date=self.end_date)
         
 

@@ -35,10 +35,13 @@ class CCIndexFetchNewsJob(CCIndexWarcSparkJob, FetchNewsJob):
             'ko': 'kor'
         }
 
-        if lang not in lang_map:
-            raise KeyError("Please add country code mapping for this language")
+        if lang:
+            if lang not in lang_map:
+                raise KeyError("Please add country code mapping for this language")
 
-        three_lang = lang_map[lang]
+            three_lang = lang_map[lang]
+        else:
+            three_lang = None
 
         self.query = utils.construct_query(urls, sites, limit, crawls=crawls, lang=three_lang, url_black_list=url_black_list)
 

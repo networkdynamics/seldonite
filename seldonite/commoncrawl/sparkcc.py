@@ -8,7 +8,7 @@ from tempfile import TemporaryFile
 
 import boto3
 import botocore
-from pyspark.sql.types import StructType
+import pyspark.sql as psql
 from warcio.archiveiterator import ArchiveIterator
 from warcio.recordloader import ArchiveLoadFailed
 
@@ -232,7 +232,7 @@ class CCIndexSparkJob(CCSparkJob):
         table_schema_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'cc-index-schema-flat.json')
         
         with open(table_schema_path, 'r') as s:
-            self.table_schema = StructType.fromJson(json.loads(s.read()))
+            self.table_schema = psql.types.StructType.fromJson(json.loads(s.read()))
         # path to default common crawl index
         self.table_path = table_path
 
@@ -249,7 +249,6 @@ class CCIndexSparkJob(CCSparkJob):
         spark_session = spark_manager.get_spark_session()
         sqldf = spark_session.sql(query)
         self.get_logger(spark_manager=spark_manager).info("Executing query: {}".format(query))
-        sqldf.explain()
         return sqldf
 
     def load_dataframe(self, spark_manager: SparkManager):
@@ -358,16 +357,23 @@ class CCIndexWarcSparkJob(CCIndexSparkJob):
                     .format(url, warc_path, offset, length, exception))
 
     def run_job(self, spark_manager):
-        sqldf = self.load_dataframe(spark_manager)
+        df = self.load_dataframe(spark_manager)
 
         if self.url_only:
             columns = ['url']
-            return sqldf.select(*columns)
+            return df.select(*columns)
         else:
             columns = ['url', 'warc_filename', 'warc_record_offset', 'warc_record_length']
-            if 'content_charset' in sqldf.columns:
+            if 'content_charset' in df.columns:
                 columns.append('content_charset')
-            warc_recs = sqldf.select(*columns).rdd
+            warc_recs = df.select(*columns).rdd
+
+            if self.urls:
+                spark = spark_manager.get_spark_session()
+                url_df = spark.createDataFrame(self.urls, psql.types.StringType()).withColumnRenamed('value', 'url')
+                df = df.join(url_df, 'url', 'leftsemi')
+
+            warc_recs = df.rdd
 
         num_warcs = warc_recs.count()
         if num_warcs == 0:
@@ -383,7 +389,8 @@ class CCIndexWarcSparkJob(CCIndexSparkJob):
         return rdd.toDF()
 
 
-    def run(self, spark_manager, features, url_only):
+    def run(self, spark_manager, features, urls, url_only):
         self.url_only = url_only
         self.features = features
+        self.urls = urls
         return super().run(spark_manager)
