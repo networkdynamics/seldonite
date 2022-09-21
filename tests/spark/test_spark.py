@@ -28,13 +28,16 @@ def test_articles_pulled_from_url_via_index():
     warc_index = pd.read_csv(warc_index_path)
     warc_rdd = mocks.MockRDD(warc_index)
 
-    master_url = ""
-    job = CCIndexFetchNewsJob(spark_master_url=master_url)
+    access_key = os.environ['AWS_ACCESS_KEY']
+    secret_key = os.environ['AWS_SECRET_KEY']
+    job = CCIndexFetchNewsJob(access_key, secret_key)
     job.records_processed = mocks.MockAccumulator()
     job.warc_input_processed = mocks.MockAccumulator()
     job.warc_input_failed = mocks.MockAccumulator()
-    job.set_constraints(None, [], [], [], None, None)
+    job.set_constraints([], None, None)
+    job.features = ['url', 'text', 'title', 'publish_date', 'meta_keywords']
     articles = job.fetch_process_warc_records(warc_rdd)
+    articles = list(articles)
 
     for article in articles:
         assert 'text' in article
