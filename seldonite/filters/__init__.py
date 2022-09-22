@@ -3,8 +3,6 @@ from urllib.parse import urlparse
 from flashgeotext.geotext import GeoText
 import langdetect
 
-from seldonite.filters import political
-
 def contains_keywords(article, keywords):
     if any(keyword in article.title for keyword in keywords):
         return True
