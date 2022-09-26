@@ -1,6 +1,6 @@
 import datetime
 
-import seldonite.helpers.utils as utils
+from seldonite.helpers import utils, worker_utils
 
 import pytest
 
@@ -72,5 +72,5 @@ def test_construct_db_uri():
      ("https://www.reuters.com/markets/commodities/ukraine-says-it-can-export-3-million-tonnes-grain-ports-next-month-2022-08-16/"),
      ("https://www.reuters.com/business/palladium-sheds-nearly-13-worries-over-china-demand-hit-2022-04-25/")])
 def test_link_to_article(url):
-    article = utils.link_to_article(url)
+    article = worker_utils.link_to_article(url)
     assert article.meta_data is not None

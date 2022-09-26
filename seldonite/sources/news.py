@@ -4,7 +4,7 @@ import datetime
 from seldonite.commoncrawl.cc_index_fetch_news import CCIndexFetchNewsJob
 from seldonite.commoncrawl.fetch_news import FetchNewsJob
 from seldonite.commoncrawl.sparkcc import CCIndexSparkJob
-from seldonite.helpers import utils
+from seldonite.helpers import utils, worker_utils
 from seldonite.spark import spark_tools
 
 from googleapiclient.discovery import build as gbuild
@@ -335,7 +335,7 @@ class Google(SearchEngineSource):
                 if url_only:
                     articles.append(psql.Row(url=url))
                 else:
-                    article = utils.link_to_article(url)
+                    article = worker_utils.link_to_article(url)
                     row_values = collections.OrderedDict()
                     for feature in self.features:
                         if feature == 'url':

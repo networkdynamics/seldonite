@@ -1,7 +1,7 @@
 
 from seldonite.commoncrawl.sparkcc import CCIndexWarcSparkJob
 from seldonite.commoncrawl.fetch_news import FetchNewsJob
-from seldonite.helpers import heuristics, utils
+from seldonite.helpers import worker_utils
 
 
 class CCIndexFetchNewsJob(CCIndexWarcSparkJob, FetchNewsJob):
@@ -43,7 +43,7 @@ class CCIndexFetchNewsJob(CCIndexWarcSparkJob, FetchNewsJob):
         else:
             three_lang = None
 
-        self.query = utils.construct_query(urls, sites, limit, crawls=crawls, lang=three_lang, url_black_list=url_black_list)
+        self.query = worker_utils.construct_query(urls, sites, limit, crawls=crawls, lang=three_lang, url_black_list=url_black_list)
 
     def init_accumulators(self, spark_manager):
         super().init_accumulators(spark_manager)

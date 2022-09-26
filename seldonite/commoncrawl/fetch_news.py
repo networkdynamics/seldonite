@@ -4,7 +4,7 @@ import pyspark.sql as psql
 
 from seldonite import filters
 from seldonite.commoncrawl.sparkcc import CCSparkJob
-from seldonite.helpers import utils, heuristics
+from seldonite.helpers import heuristics, worker_utils
 
 
 class FetchNewsJob(CCSparkJob):
@@ -44,7 +44,7 @@ class FetchNewsJob(CCSparkJob):
         page = record.content_stream().read()
 
         try:
-            article = utils.html_to_article(url, page)
+            article = worker_utils.html_to_article(url, page)
         except Exception as e:
             self.get_logger().error("Error converting HTML to article for {}: {}",
                                     record.rec_headers['WARC-Target-URI'], e)
