@@ -339,7 +339,7 @@ class Google(SearchEngineSource):
                     try:
                         article = worker_utils.link_to_article(url)
                     except ValueError:
-                        logging.warn("Couldn't get article from URL: {url}")
+                        logging.warn(f"Couldn't get article from URL: {url}")
                         continue
 
                     row_values = collections.OrderedDict()
