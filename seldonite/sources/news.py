@@ -1,5 +1,6 @@
 import collections
 import datetime
+import logging
 
 from seldonite.commoncrawl.cc_index_fetch_news import CCIndexFetchNewsJob
 from seldonite.commoncrawl.fetch_news import FetchNewsJob
@@ -335,7 +336,12 @@ class Google(SearchEngineSource):
                 if url_only:
                     articles.append(psql.Row(url=url))
                 else:
-                    article = worker_utils.link_to_article(url)
+                    try:
+                        article = worker_utils.link_to_article(url)
+                    except ValueError:
+                        logging.warn("Couldn't get article from URL: {url}")
+                        continue
+
                     row_values = collections.OrderedDict()
                     for feature in self.features:
                         if feature == 'url':

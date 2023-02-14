@@ -1,9 +1,13 @@
-from newspaper import Article
+from newspaper import Article, ArticleException
 
 def link_to_article(link):
     article = Article(link)
     article.download()
-    article.parse()
+
+    try:
+        article.parse()
+    except ArticleException as e:
+        raise ValueError(str(e))
 
     return article
 
