@@ -33,6 +33,7 @@ class BaseSource:
         self.end_date = None
 
         self.sites = []
+        self.urls = None
 
         self.features = ['title', 'text', 'url', 'publish_date']
 

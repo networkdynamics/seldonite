@@ -37,9 +37,17 @@ class CCIndexFetchNewsJob(CCIndexWarcSparkJob, FetchNewsJob):
 
         if lang:
             if lang not in lang_map:
-                raise KeyError("Please add country code mapping for this language")
-
-            three_lang = lang_map[lang]
+                exception = KeyError("Please add country code mapping for this language")
+                if len(lang) == 3:
+                    potential_three_lang = lang
+                    if potential_three_lang in lang_map.values():
+                        three_lang = potential_three_lang
+                    else:
+                        raise exception
+                else:
+                    raise exception
+            else:
+                three_lang = lang_map[lang]
         else:
             three_lang = None
 
