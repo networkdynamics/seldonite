@@ -96,7 +96,7 @@ def get_cc_crawls_since(date):
             crawl_month = crawl_month_match.group()
             crawl_month_date = datetime.datetime.strptime(crawl_month, '%B')
             crawl_month_num = crawl_month_date.month
-            if crawl_month_num > date.month:
+            if crawl_month_num >= date.month:
                 crawl_ids.append(crawl['id'])
 
     return crawl_ids
