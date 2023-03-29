@@ -1,3 +1,4 @@
+import datetime
 import os
 
 import pyspark.sql as psql
@@ -35,6 +36,17 @@ class Collector:
         '''
         Set dates to fetch news from, range is inclusive
         '''
+        if isinstance(start_date, datetime.datetime):
+            start_date = start_date.date()
+        if isinstance(start_date, datetime.datetime):
+            end_date = end_date.date()
+
+        if not isinstance(start_date, datetime.date):
+            raise ValueError('start_date must be a datetime object')
+        
+        if not isinstance(end_date, datetime.date):
+            raise ValueError('end_date must be a datetime object')
+
         self._source.set_date_range(start_date, end_date)
         return self
 
