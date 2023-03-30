@@ -45,9 +45,8 @@ class FetchNewsJob(CCSparkJob):
 
         try:
             article = worker_utils.html_to_article(url, page)
-        except Exception as e:
-            self.get_logger().error("Error converting HTML to article for {}: {}",
-                                    record.rec_headers['WARC-Target-URI'], e)
+        except Exception:
+            self.get_logger().exception(f"Error converting HTML to article for {record.rec_headers['WARC-Target-URI']}")
             self.records_parsing_failed.add(1)
             return None
 
