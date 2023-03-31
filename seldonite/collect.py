@@ -101,6 +101,7 @@ class Collector:
         return self
 
     def distinct(self):
+        self._source.set_distinct()
         self._get_distinct_articles = True
         return self
 

@@ -78,6 +78,9 @@ class BaseSource:
     def set_features(self, features):
         self.features = features
 
+    def set_distinct(self):
+        return
+
     def fetch(self, *args, **kwargs):
         raise NotImplementedError()
 
@@ -167,6 +170,7 @@ class CommonCrawl(BaseCommonCrawl):
         self.can_url_black_list = True
         self.can_url_search = True
         self.crawls = None
+        self.distinct = False
 
     def set_crawls(self, crawl):
         if crawl == 'latest':

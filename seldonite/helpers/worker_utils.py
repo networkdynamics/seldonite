@@ -69,7 +69,7 @@ def construct_query(urls, sites, limit, crawls=None, lang='eng', url_black_list=
         first_year = 1991
         all_years = [str(year) for year in range(first_year, this_year + 1)]
         other_years = [year for year in all_years if year not in years]
-        clause = " OR ".join((f"url_path LIKE '/{year}/%'" for year in other_years))
+        clause = " OR ".join((f"url_path LIKE '%/{year}/%'" for year in other_years))
         query += f" AND NOT ({clause})"
 
     if url_black_list:
