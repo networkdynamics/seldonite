@@ -30,7 +30,7 @@ def dict_to_article(dict):
 
 def construct_query(urls, sites, limit, crawls=None, lang='eng', url_black_list=[]):
     #TODO automatically get most recent crawl
-    query = "SELECT url, warc_filename, warc_record_offset, warc_record_length, content_charset FROM ccindex WHERE subset = 'warc'"
+    query = "SELECT url, url_path, warc_filename, warc_record_offset, warc_record_length, content_charset FROM ccindex WHERE subset = 'warc'"
 
     if crawls:
         # 
@@ -57,6 +57,9 @@ def construct_query(urls, sites, limit, crawls=None, lang='eng', url_black_list=
     # Language filter
     if lang:
         query += f" AND (content_languages IS NULL OR (content_languages IS NOT NULL AND content_languages = '{lang}'))"
+
+    # url must have a path longer than /, otherwise its probably not an article
+    query += " AND LENGTH(url_path) > 1"
 
     if url_black_list:
         # replace wildcards with %

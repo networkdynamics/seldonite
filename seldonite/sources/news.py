@@ -166,6 +166,7 @@ class CommonCrawl(BaseCommonCrawl):
         self.lang = None
         self.can_url_black_list = True
         self.can_url_search = True
+        self.crawls = None
 
     def set_crawls(self, crawl):
         if crawl == 'latest':
@@ -180,7 +181,7 @@ class CommonCrawl(BaseCommonCrawl):
 
     def fetch(self, spark_manager, max_articles=None, url_only=False):
         # only need to look at crawls that are after the start_date of the search
-        if self.start_date is not None:
+        if self.start_date is not None and self.crawls is None:
             self.crawls = utils.get_cc_crawls_since(self.start_date)
 
         if self.crawls is None:
