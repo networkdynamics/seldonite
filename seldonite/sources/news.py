@@ -190,7 +190,8 @@ class CommonCrawl(BaseCommonCrawl):
         # create the spark job
         job = CCIndexFetchNewsJob(self.aws_access_key, self.aws_secret_key)
         job.set_query_options(sites=self.sites, crawls=self.crawls, lang=self.lang, 
-                              limit=max_articles, url_black_list=self.url_black_list)
+                              limit=max_articles, url_black_list=self.url_black_list,
+                              start_date=self.start_date, end_date=self.end_date)
         return job.run(spark_manager, features=self.features, urls=self.urls, url_only=url_only, keywords=self.keywords, 
                        start_date=self.start_date, end_date=self.end_date)
         

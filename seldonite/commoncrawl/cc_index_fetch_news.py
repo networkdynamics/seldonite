@@ -17,7 +17,7 @@ class CCIndexFetchNewsJob(CCIndexWarcSparkJob, FetchNewsJob):
         self.set_constraints(keywords, start_date, end_date)
         return super().run(spark_manager, features, **kwargs)
 
-    def set_query_options(self, urls=[], sites=[], crawls=[], lang=None, limit=None, url_black_list=[]):
+    def set_query_options(self, urls=[], sites=[], crawls=[], lang=None, limit=None, url_black_list=[], start_date=None, end_date=None):
 
         lang_map = {
             'en': 'eng',
@@ -51,7 +51,10 @@ class CCIndexFetchNewsJob(CCIndexWarcSparkJob, FetchNewsJob):
         else:
             three_lang = None
 
-        self.query = worker_utils.construct_query(urls, sites, limit, crawls=crawls, lang=three_lang, url_black_list=url_black_list)
+        self.query = worker_utils.construct_query(
+            urls, sites, limit, 
+            crawls=crawls, lang=three_lang, url_black_list=url_black_list, start_date=start_date, end_date=end_date
+        )
 
     def init_accumulators(self, spark_manager):
         super().init_accumulators(spark_manager)

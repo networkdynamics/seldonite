@@ -1,3 +1,5 @@
+import datetime
+
 from newspaper import Article, ArticleException
 
 def link_to_article(link):
@@ -28,7 +30,7 @@ def dict_to_article(dict):
     article.publish_date = dict['publish_date']
     return article
 
-def construct_query(urls, sites, limit, crawls=None, lang='eng', url_black_list=[]):
+def construct_query(urls, sites, limit, crawls=None, lang='eng', url_black_list=[], start_date=None, end_date=None):
     #TODO automatically get most recent crawl
     query = "SELECT url, url_path, warc_filename, warc_record_offset, warc_record_length, content_charset FROM ccindex WHERE subset = 'warc'"
 
@@ -60,6 +62,15 @@ def construct_query(urls, sites, limit, crawls=None, lang='eng', url_black_list=
 
     # url must have a path longer than /, otherwise its probably not an article
     query += " AND LENGTH(url_path) > 1"
+
+    if start_date and end_date:
+        years = [str(year) for year in range(start_date.year, end_date.year + 1)]
+        this_year = datetime.date.today().year
+        first_year = 1991
+        all_years = [str(year) for year in range(first_year, this_year + 1)]
+        other_years = [year for year in all_years if year not in years]
+        clause = " OR ".join((f"url_path LIKE '/{year}/%'" for year in other_years))
+        query += f" AND NOT ({clause})"
 
     if url_black_list:
         # replace wildcards with %
